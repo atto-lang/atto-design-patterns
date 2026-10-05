@@ -5,7 +5,7 @@
 
 type Entity = int;
 
-define module ecs_pattern
+define module ecs_pattern as
   fnc movement_system(
     Array<Entity> entities,
     Array<int> position_x,
