@@ -1,7 +1,7 @@
 // Composite: leaf and composite values share one callable shape.
 // A composite can contain other composites because both are Fnc<int, int>.
 
-define module composite_pattern
+define module composite_pattern as
   fnc leaf(int weight): Fnc<int, int> {
     return |int scale| -> {
       return weight * scale;
