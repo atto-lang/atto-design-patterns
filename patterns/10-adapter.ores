@@ -4,7 +4,7 @@ type LegacyUser = {user_name: string, enabled: bool};
 type User = {name: string, active: bool};
 
 define module adapter_pattern
-  pure fnc adapt(LegacyUser legacy): User {
+  fnc adapt(LegacyUser legacy): User {
     return obj{
       name: legacy.user_name,
       active: legacy.enabled
