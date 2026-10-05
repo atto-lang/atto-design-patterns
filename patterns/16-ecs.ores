@@ -1,0 +1,39 @@
+// Entity-Component-System:
+// - entities are opaque/stable IDs
+// - components are flat data
+// - systems own behavior over declared component sets
+
+type Entity = int;
+
+define module ecs_pattern
+  fnc movement_system(
+    Array<Entity> entities,
+    Array<int> position_x,
+    Array<int> velocity_x
+  ): void {
+    for entity of entities do
+      position_x[entity] = position_x[entity] + velocity_x[entity];
+    done
+    return;
+  }
+
+  pub fnc demo(): void {
+    val entities = [0, 1, 2];
+
+    // Component columns: behavior is not stored on entities.
+    let position_x = [10, 20, 30];
+    val velocity_x = [1, -2, 5];
+
+    movement_system(entities, position_x, velocity_x);
+
+    stdio.println(position_x[0]);
+    stdio.println(position_x[1]);
+    stdio.println(position_x[2]);
+    return;
+  }
+end
+
+pub routine main(): void {
+  ecs_pattern.demo();
+  return;
+}
