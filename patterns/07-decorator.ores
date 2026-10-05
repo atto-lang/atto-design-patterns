@@ -1,7 +1,7 @@
 // Decorator: a higher-order function preserves the callable contract
 // while adding behavior around another callable.
 
-define module decorator_pattern
+define module decorator_pattern as
   fnc with_logging(Fnc<int, int> inner): Fnc<int, int> {
     return |int value| -> {
       stdio.println("before");
