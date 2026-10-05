@@ -1,6 +1,6 @@
 // Strategy: in Oreslang the strategy can simply be a typed function value.
 
-define module strategy_pattern
+define module strategy_pattern as
   fnc checkout(int subtotal, Fnc<int, int> pricing): int {
     return pricing(subtotal);
   }
