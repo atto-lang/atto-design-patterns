@@ -1,0 +1,46 @@
+// Visitor: pattern matching replaces double-dispatch ceremony.
+// The element classes stay behavior-light; new operations are ordinary functions.
+
+define class Expr as
+end
+
+define class LiteralTwo extends Expr as
+end
+
+define class LiteralThree extends Expr as
+end
+
+define class AddTwoThree extends Expr as
+end
+
+define module visitor_pattern
+  fnc evaluate(Expr expr): int {
+    match first expr
+      is LiteralTwo literal -> { return 2; }
+      is LiteralThree literal -> { return 3; }
+      is AddTwoThree add -> { return 5; }
+      else -> { return 0; }
+    end
+  }
+
+  fnc pretty(Expr expr): string {
+    match first expr
+      is LiteralTwo literal -> { return "2"; }
+      is LiteralThree literal -> { return "3"; }
+      is AddTwoThree add -> { return "(2 + 3)"; }
+      else -> { return "?"; }
+    end
+  }
+
+  pub fnc demo(): void {
+    val Expr expr = new AddTwoThree();
+    stdio.println(evaluate(expr));
+    stdio.println(pretty(expr));
+    return;
+  }
+end
+
+pub routine main(): void {
+  visitor_pattern.demo();
+  return;
+}
