@@ -13,7 +13,7 @@ end
 define class AddTwoThree extends Expr as
 end
 
-define module visitor_pattern
+define module visitor_pattern as
   fnc evaluate(Expr expr): int {
     match first expr
       is LiteralTwo literal -> { return 2; }
