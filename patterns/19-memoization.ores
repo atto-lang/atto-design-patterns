@@ -2,7 +2,7 @@
 // This compact example is a one-entry cache; general memoization wants Map<K,V>
 // plus explicit equality, ownership, lifetime, and concurrency policy.
 
-define module memoization_pattern
+define module memoization_pattern as
   fnc memoize_last(Fnc<int, int> target): Fnc<int, int> {
     let bool has_value = false;
     let int cached_input = 0;
