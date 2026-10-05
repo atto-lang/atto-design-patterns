@@ -2,7 +2,7 @@
 
 type Transport = {kind: string, cents_per_km: int};
 
-define module factory_pattern
+define module factory_pattern as
   fnc create_transport(string mode): Transport {
     switch mode
       case "bike" -> {
