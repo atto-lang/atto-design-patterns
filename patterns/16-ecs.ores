@@ -11,9 +11,9 @@ define module ecs_pattern
     Array<int> position_x,
     Array<int> velocity_x
   ): void {
-    for entity of entities do
+    for (val entity of entities) {
       position_x[entity] = position_x[entity] + velocity_x[entity];
-    done
+    }
     return;
   }
 
