@@ -1,0 +1,45 @@
+// Chain of Responsibility: handlers return Option<Response>.
+// The first Some wins; None means "keep going".
+
+type Request = {path: string, authenticated: bool};
+
+define module chain_pattern
+  fnc auth_handler(Request request): Option<string> {
+    if !request.authenticated then
+      return Some("401");
+    fi
+    return None;
+  }
+
+  fnc api_handler(Request request): Option<string> {
+    if request.path == "/api" then
+      return Some("200 api");
+    fi
+    return None;
+  }
+
+  fnc dispatch(Request request): string {
+    val auth = auth_handler(request);
+    if auth matches Some(response) then
+      return response;
+    fi
+
+    val api = api_handler(request);
+    if api matches Some(response) then
+      return response;
+    fi
+
+    return "404";
+  }
+
+  pub fnc demo(): void {
+    stdio.println(dispatch(obj{path: "/api", authenticated: true}));
+    stdio.println(dispatch(obj{path: "/api", authenticated: false}));
+    return;
+  }
+end
+
+pub routine main(): void {
+  chain_pattern.demo();
+  return;
+}
