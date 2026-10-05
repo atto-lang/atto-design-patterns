@@ -7,7 +7,7 @@ type HttpConfig = {
   retries: int
 };
 
-define module builder_pattern
+define module builder_pattern as
   fnc defaults(): HttpConfig {
     return obj{host: "localhost", port: 8080, retries: 1};
   }
