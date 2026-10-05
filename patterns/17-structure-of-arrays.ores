@@ -1,7 +1,7 @@
 // Structure of Arrays (SoA): each field occupies its own dense column.
 // Hot loops touch only the columns they need.
 
-define module soa_pattern
+define module soa_pattern as
   fnc integrate(
     Array<int> indices,
     Array<int> x,
