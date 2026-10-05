@@ -9,10 +9,10 @@ define module soa_pattern
     Array<int> vx,
     Array<int> vy
   ): void {
-    for i of indices do
+    for (val i of indices) {
       x[i] = x[i] + vx[i];
       y[i] = y[i] + vy[i];
-    done
+    }
     return;
   }
 
