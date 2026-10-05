@@ -3,7 +3,7 @@
 type CounterState = {count: int};
 type CounterAction = {kind: string, amount: int};
 
-define module state_pattern
+define module state_pattern as
   fnc reduce(CounterState state, CounterAction action): CounterState {
     switch action.kind
       case "increment" -> {
