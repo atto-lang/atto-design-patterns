@@ -1,0 +1,28 @@
+// Decorator: a higher-order function preserves the callable contract
+// while adding behavior around another callable.
+
+define module decorator_pattern
+  fnc with_logging(Fnc<int, int> inner): Fnc<int, int> {
+    return |int value| -> {
+      stdio.println("before");
+      val result = inner(value);
+      stdio.println("after");
+      return result;
+    };
+  }
+
+  pub fnc demo(): void {
+    val Fnc<int, int> double = |int value| -> {
+      return value * 2;
+    };
+
+    val decorated = with_logging(double);
+    stdio.println(decorated(21));
+    return;
+  }
+end
+
+pub routine main(): void {
+  decorator_pattern.demo();
+  return;
+}
