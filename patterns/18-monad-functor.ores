@@ -2,7 +2,7 @@
 // computations that already return the same context.
 // These helpers make the desired Option stdlib contract explicit.
 
-define module monad_functor_pattern
+define module monad_functor_pattern as
   fnc option_map(
     Option<int> input,
     Fnc<int, int> transform
