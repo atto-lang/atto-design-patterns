@@ -8,19 +8,19 @@ type HttpConfig = {
 };
 
 define module builder_pattern
-  pure fnc defaults(): HttpConfig {
+  fnc defaults(): HttpConfig {
     return obj{host: "localhost", port: 8080, retries: 1};
   }
 
-  pure fnc with_host(HttpConfig config, string host): HttpConfig {
+  fnc with_host(HttpConfig config, string host): HttpConfig {
     return obj{host: host, port: config.port, retries: config.retries};
   }
 
-  pure fnc with_port(HttpConfig config, int port): HttpConfig {
+  fnc with_port(HttpConfig config, int port): HttpConfig {
     return obj{host: config.host, port: port, retries: config.retries};
   }
 
-  pure fnc with_retries(HttpConfig config, int retries): HttpConfig {
+  fnc with_retries(HttpConfig config, int retries): HttpConfig {
     return obj{host: config.host, port: config.port, retries: retries};
   }
 
