@@ -1,6 +1,6 @@
 // Proxy: wrap a callable with access policy while preserving its shape.
 
-define module proxy_pattern
+define module proxy_pattern as
   fnc secure(
     Fnc<string, string> target,
     Fnc<string, bool> allowed
