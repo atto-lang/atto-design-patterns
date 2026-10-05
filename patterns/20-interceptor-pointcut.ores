@@ -1,7 +1,7 @@
 // Interceptor / Pointcut: the pointcut is an explicit predicate and the
 // interceptor is an ordinary wrapper. Annotation sugar can lower to this model.
 
-define module interceptor_pointcut_pattern
+define module interceptor_pointcut_pattern as
   fnc intercept(
     Fnc<string, bool> pointcut,
     Fnc<string, void> before,
