@@ -3,7 +3,7 @@
 
 type Command = {kind: string, amount: int};
 
-define module command_pattern
+define module command_pattern as
   fnc execute(Command command, int balance): int {
     switch command.kind
       case "deposit" -> { return balance + command.amount; }
