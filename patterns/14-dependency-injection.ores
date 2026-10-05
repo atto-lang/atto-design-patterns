@@ -1,7 +1,7 @@
 // Dependency Injection: dependencies are explicit callable parameters.
 // No container or reflection is required for the common case.
 
-define module dependency_injection_pattern
+define module dependency_injection_pattern as
   fnc load_profile(
     string user_id,
     Fnc<string, string> repository,
