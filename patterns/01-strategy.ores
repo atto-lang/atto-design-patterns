@@ -1,0 +1,26 @@
+// Strategy: in Oreslang the strategy can simply be a typed function value.
+
+define module strategy_pattern
+  fnc checkout(int subtotal, Fnc<int, int> pricing): int {
+    return pricing(subtotal);
+  }
+
+  pub fnc demo(): void {
+    val Fnc<int, int> regular = |int subtotal| -> {
+      return subtotal;
+    };
+
+    val Fnc<int, int> ten_percent_off = |int subtotal| -> {
+      return subtotal - (subtotal / 10);
+    };
+
+    stdio.println(checkout(100, regular));
+    stdio.println(checkout(100, ten_percent_off));
+    return;
+  }
+end
+
+pub routine main(): void {
+  strategy_pattern.demo();
+  return;
+}

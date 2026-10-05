@@ -1,0 +1,43 @@
+// Builder: immutable builder state keeps construction composable.
+// Record-update/spread syntax would make these helpers even shorter.
+
+type HttpConfig = {
+  host: string,
+  port: int,
+  retries: int
+};
+
+define module builder_pattern
+  fnc defaults(): HttpConfig {
+    return obj{host: "localhost", port: 8080, retries: 1};
+  }
+
+  fnc with_host(HttpConfig config, string host): HttpConfig {
+    return obj{host: host, port: config.port, retries: config.retries};
+  }
+
+  fnc with_port(HttpConfig config, int port): HttpConfig {
+    return obj{host: config.host, port: port, retries: config.retries};
+  }
+
+  fnc with_retries(HttpConfig config, int retries): HttpConfig {
+    return obj{host: config.host, port: config.port, retries: retries};
+  }
+
+  pub fnc demo(): void {
+    val config0 = defaults();
+    val config1 = with_host(config0, "api.internal");
+    val config2 = with_port(config1, 8443);
+    val config3 = with_retries(config2, 3);
+
+    stdio.println(config3.host);
+    stdio.println(config3.port);
+    stdio.println(config3.retries);
+    return;
+  }
+end
+
+pub routine main(): void {
+  builder_pattern.demo();
+  return;
+}

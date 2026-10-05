@@ -1,0 +1,37 @@
+// Facade: one small module exposes a coherent operation over subsystems.
+
+define module inventory
+  pub fnc reserve(string sku): string {
+    return "reserved:" + sku;
+  }
+end
+
+define module billing
+  pub fnc charge(int cents): string {
+    stdio.println(cents);
+    return "charged";
+  }
+end
+
+define module shipping
+  pub fnc label(string sku): string {
+    return "label:" + sku;
+  }
+end
+
+define module checkout_facade
+  pub fnc checkout(string sku, int cents): string {
+    val reservation = inventory.reserve(sku);
+    val payment = billing.charge(cents);
+    val label = shipping.label(sku);
+
+    stdio.println(reservation);
+    stdio.println(payment);
+    return label;
+  }
+end
+
+pub routine main(): void {
+  stdio.println(checkout_facade.checkout("book-1", 2500));
+  return;
+}

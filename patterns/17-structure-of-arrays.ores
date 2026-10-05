@@ -1,0 +1,38 @@
+// Structure of Arrays (SoA): each field occupies its own dense column.
+// Hot loops touch only the columns they need.
+
+define module soa_pattern
+  fnc integrate(
+    Array<int> indices,
+    Array<int> x,
+    Array<int> y,
+    Array<int> vx,
+    Array<int> vy
+  ): void {
+    for (val i of indices) {
+      x[i] = x[i] + vx[i];
+      y[i] = y[i] + vy[i];
+    }
+    return;
+  }
+
+  pub fnc demo(): void {
+    val indices = [0, 1, 2];
+
+    let x = [0, 10, 20];
+    let y = [5, 15, 25];
+    val vx = [1, 1, -2];
+    val vy = [2, -1, 3];
+
+    integrate(indices, x, y, vx, vy);
+
+    stdio.println(x[2]);
+    stdio.println(y[2]);
+    return;
+  }
+end
+
+pub routine main(): void {
+  soa_pattern.demo();
+  return;
+}

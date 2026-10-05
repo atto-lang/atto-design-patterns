@@ -1,0 +1,42 @@
+// Memoization: cache repeated calls to a pure function.
+// This compact example is a one-entry cache; general memoization wants Map<K,V>
+// plus explicit equality, ownership, lifetime, and concurrency policy.
+
+define module memoization_pattern
+  fnc memoize_last(Fnc<int, int> target): Fnc<int, int> {
+    let bool has_value = false;
+    let int cached_input = 0;
+    let int cached_output = 0;
+
+    return |int input| -> {
+      if has_value && input == cached_input then
+        return cached_output;
+      fi
+
+      val output = target(input);
+      cached_input = input;
+      cached_output = output;
+      has_value = true;
+      return output;
+    };
+  }
+
+  pub fnc demo(): void {
+    val Fnc<int, int> expensive = |int value| -> {
+      stdio.println("compute");
+      return value * value;
+    };
+
+    val memoized = memoize_last(expensive);
+
+    stdio.println(memoized(12));
+    stdio.println(memoized(12));
+    stdio.println(memoized(13));
+    return;
+  }
+end
+
+pub routine main(): void {
+  memoization_pattern.demo();
+  return;
+}

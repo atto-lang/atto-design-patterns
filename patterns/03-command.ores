@@ -1,0 +1,30 @@
+// Command: represent work as serializable data and interpret it.
+// This is queue/replay friendly without allocating one class per command.
+
+type Command = {kind: string, amount: int};
+
+define module command_pattern
+  fnc execute(Command command, int balance): int {
+    switch command.kind
+      case "deposit" -> { return balance + command.amount; }
+      case "withdraw" -> { return balance - command.amount; }
+      default -> { return balance; }
+    end
+  }
+
+  pub fnc demo(): void {
+    val deposit = obj{kind: "deposit", amount: 25};
+    val withdraw = obj{kind: "withdraw", amount: 10};
+
+    val after_deposit = execute(deposit, 100);
+    val after_withdraw = execute(withdraw, after_deposit);
+
+    stdio.println(after_withdraw);
+    return;
+  }
+end
+
+pub routine main(): void {
+  command_pattern.demo();
+  return;
+}
