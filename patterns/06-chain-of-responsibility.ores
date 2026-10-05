@@ -3,7 +3,7 @@
 
 type Request = {path: string, authenticated: bool};
 
-define module chain_pattern
+define module chain_pattern as
   fnc auth_handler(Request request): Option<string> {
     if !request.authenticated then
       return Some("401");
