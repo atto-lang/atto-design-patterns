@@ -3,9 +3,9 @@
 
 define module observer_pattern
   fnc notify(Array<Fnc<string, void>> observers, string event): void {
-    for observer of observers do
+    for (val observer of observers) {
       observer(event);
-    done
+    }
     return;
   }
 
