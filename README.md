@@ -53,3 +53,17 @@ See [LANGUAGE_FINDINGS.md](LANGUAGE_FINDINGS.md) for language-design pressure ex
 ## 2026-10-06 compiler PR compatibility
 
 For the latest 10 upstream Oreslang compiler PRs, see [docs/compiler-pr-sync.md](docs/compiler-pr-sync.md). These features remain unmerged; this repo preserves its existing compiler reference and defaults until exact-SHA integration evidence is available.
+
+## Runner CI and native-pattern coverage
+
+The `Test runner contracts` workflow checks shell syntax and uses a compiler
+test double to prove independent, ordered checks, repository-root execution,
+paths with spaces, exact failure propagation, and rejection of an empty pattern
+directory. `ORESLANG_BIN` can select an explicit CLI executable. The workflow
+uses read-only permissions and no secrets.
+
+This runner gate does not claim that all 20 patterns compile. The 2026-10-07
+probe against compiler `5ffc52d9297d175307094d530293c69f1cafc7cd` found removed
+`obj{...}` syntax, reuse of moved `expr` in Visitor, and readonly collection
+mutation in ECS/SoA. Migrate to `infer struct`, explicit borrowing, and owned
+mutable buffers before pinning that compiler for complete native pattern CI.
