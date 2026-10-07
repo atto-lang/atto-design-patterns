@@ -49,3 +49,7 @@ bash scripts/check-all.sh
 The script checks each pattern as a separate source unit so every file can own a `main` routine without cross-example symbol collisions.
 
 See [LANGUAGE_FINDINGS.md](LANGUAGE_FINDINGS.md) for language-design pressure exposed by the examples.
+
+## 2026-10-06 compiler PR compatibility
+
+For the latest 10 upstream Oreslang compiler PRs, see [docs/compiler-pr-sync.md](docs/compiler-pr-sync.md). These features remain unmerged; this repo preserves its existing compiler reference and defaults until exact-SHA integration evidence is available.
