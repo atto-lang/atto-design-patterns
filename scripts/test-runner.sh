@@ -3,6 +3,7 @@ set -euo pipefail
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 tmp="$(mktemp -d "${TMPDIR:-/tmp}/ores-pattern-runner.XXXXXX")"
 trap 'rm -rf "$tmp"' EXIT
+tmp="$(cd "$tmp" && pwd -P)"
 project="$tmp/project with spaces"
 mkdir -p "$project/scripts" "$project/patterns" "$tmp/bin"
 cp "$root/scripts/check-all.sh" "$project/scripts/check-all.sh"
