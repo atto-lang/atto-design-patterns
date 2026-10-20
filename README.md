@@ -79,9 +79,11 @@ storage layout. Neither design requires actors; optional stdlib/otp/gen_statem
 may wrap the same reducer over an actor in a later PR.
 
 The accompanying [bounded Python reference model](formal/fsm_reference.py)
-and [exhaustive small-trace tests](formal/test_fsm_reference.py) exercise
-transition parity, failed-guard no-op semantics, capacity, generational
-handles, swap-delete, tail lanes and borrow/relayout exclusion:
+, [exhaustive small-trace tests](formal/test_fsm_reference.py) and
+[adversarial hardening regressions](formal/test_fsm_hardening.py) exercise
+transition parity, failed-guard no-op semantics, bounded outbox admission,
+store-incarnation and generation fencing, swap-delete, injected relayout failure,
+tail lanes and borrow/relayout exclusion:
 
 ~~~bash
 python3 -m unittest discover -s formal -p 'test_fsm_*.py' -v
