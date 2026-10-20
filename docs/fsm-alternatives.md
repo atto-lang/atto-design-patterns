@@ -110,3 +110,34 @@ Promotion gates:
 - G4: benchmark per-event ns, events/s, bytes/instance, allocation rate, cache misses, tail-lane performance and WCET bounds on named CPU/hardware/profile. Do not mistake throughput measurements for deadline certification.
 
 No compiler/library source is claimed implemented by this RFC. Keep the PR **draft** until G1-G2 exact-source evidence is recorded.
+
+
+## Audit/hardening addendum — October 19, 2026
+
+### Resolved in the finite Python reference (not yet real guest code)
+
+- **Store-recreation ABA:** a logical handle now includes a store-incarnation stamp minted for each new instance, in addition to the caller-visible owner, slot and generation. A recreated store with the same owner/slot/generation will reject a previous incarnation. The stamp is *not* a security capability or cross-process identity standard; actual systems must derive an authoritative namespace/epoch from supervisor lifecycle and reject forgeable cross-domain handles.
+- **Finite generation exhaustion:** generations are deliberately model-bounded to \`0..6\`, with \`7\` representing terminal retirement. A retired slot is never recycled in its incarnation; a full retired-slot table refuses insertion rather than wrapping and triggering ABA. Production shall use an explicit wide nonwrapping generation and a defined exhaustion policy.
+- **Transactional relayout:** conversion first builds a complete independent AoS/SoA/AoSoA representation, then publishes it; invalid lanes or a failed builder do not rewrite the original layout, row values, dense-slot map or outbox. This does not prove allocation-failure handling in an actual native allocator.
+- **Bounded action admission:** \`LayoutStore.apply\` reserves one local outbox item *before* publishing each accepted machine transition; full outbox rejects without changing state/version or previously queued actions. \`drain_actions\` provides a bounded explicit handoff, **not** durable delivery, distributed exactly-once effects or an external transport protocol. A production implementation requires durable/idempotent dispatch where necessary.
+- **Closed Symbol admission:** the model accepts the conservative unquoted ASCII literal subset \`#[A-Za-z_][A-Za-z0-9_]*\` with a 128-byte bound; rejects duplicate state/event registrations, repeated edges, undeclared or malformed tags, and non-Boolean guards. This is not the full normative Unicode, quoted-literal or visibility model from \`common-source/docs/SYMBOLS.md\`.
+- **Finiteness:** model maxima are 32 states, 32 events, 256 edges, 64 live/retired slots, 16 lanes, 256 outbox entries and version 7. These are test bounds, *not* suggested runtime defaults or WCET certificates.
+- **Adversarial regression corpus:** deterministic cross-layout randomized oracles, malicious handles and malformed labels, stale-incarnation and bounded-generation exhaustion, drained/rejected effects, injected relayout failure and fixed-layout parity complement exhaustive 781-trace runs.
+
+### Explicit limitations / review blockers
+
+1. \`read_loan\` is a **whole-store synchronous model fence**, not a field-sensitive borrow checker. It does not model \`await\`, actual suspension frames, aliasing across Task/actor domains, or adversarial concurrent threads.
+2. \`ecs_tick\` is sequential and **per-event atomic**, not all-or-none across the full batch. A later bad handle may leave earlier successful transitions committed. Real parallel ECS dispatch needs determinism, read/write set proofs, locking/partitioning and bounded scheduling contracts.
+3. The Python reference assumes operations execute on one thread without asynchronous mutation, and does not promise recovery from arbitrary Python \`MemoryError\` during insert, removal or a partially written \`_put_dense\`. Native implementation must explicitly preallocate, commit/rollback structural changes and test injected allocator failures.
+4. The RuleTable is not a fully validated executable guest AST. Guards are modeled by a Boolean input; actual compilation must prove guard purity/termination, bounded execution, type-correct action payloads, causal ordering, and allowed Symbol visibility. Any rule upgrade/hot reload requires an exact policy/generation pin.
+5. Exhaustive traces are bounded to five event choices and lengths 0..4; randomized traces are deterministic finite samples, **not** formal proof of all interleavings, progress, fairness, liveness, or hard real-time WCET.
+6. The only available GitHub Actions result for the original PR head reported failure before recorded job steps, with logs unavailable. Do not claim the new tests have executed remotely until a runner emits a successful exact-head receipt. Do not copy private source to an unrelated organization without explicit authorization.
+
+### Concrete exit criteria for promoting the PR
+
+- [ ] Execute \`python3 -m unittest discover -s formal -p 'test_fsm_*.py' -v\` on the actual PR head, recording commit SHA, Python version, test counts and logs.
+- [ ] Execute real \`.ores\` FSM semantics and negative admission fixtures on current Java/LLVM/Rust backend heads; distinguish syntax compilation, native runtime execution and model-only passes.
+- [ ] Add allocator-failure/injected crash tests, lifecycle epoch ownership, field-sensitive borrow checks, version-fenced hot reload, and a durable outbox if cross-process effects are supported.
+- [ ] Add a bounded TLA+/Apalache model for interleavings/restarts and separately justified fairness/liveness properties.
+- [ ] Benchmark AoS/SoA/AoSoA for different machine sizes, access patterns, SIMD lane widths and target hardware. Profile strict RT only with platform-specific timing certification.
+
