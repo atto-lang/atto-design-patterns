@@ -66,7 +66,7 @@ class Handle:
     slot: int
     generation: int
     incarnation: int = 0  # minted per store; default represents an inadmissible forged handle
-    _issuer: object = field(default=None, repr=False, compare=False)
+    _issuer: object = field(default=None, repr=False)
 
     def __deepcopy__(self, memo):
         # Immutable bearer handles retain their issuer identity during an
