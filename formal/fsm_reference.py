@@ -8,10 +8,36 @@ from __future__ import annotations
 
 from contextlib import contextmanager
 from dataclasses import dataclass
+from itertools import count, islice
+from re import fullmatch
+from types import MappingProxyType
 from typing import Iterable, Iterator
 
 
 MAX_VERSION = 7
+MAX_GENERATION = 7  # deliberately small model bound; production generations must not wrap
+MAX_STATES = 32
+MAX_EVENTS = 32
+MAX_RULES = 256
+MAX_CAPACITY = 64
+MAX_LANES = 16
+MAX_OUTBOX = 256
+_NEXT_INCARCERATION = count(1)
+
+
+def _symbol(value: object) -> bool:
+    """Conservative subset of canonical ASCII #symbol literals (not guest lexer)."""
+    return (type(value) is str and len(value.encode("utf-8")) <= 128
+            and fullmatch(r"#[A-Za-z_][A-Za-z0-9_]*", value) is not None)
+
+
+def _bounded_labels(values: Iterable[str], limit: int, kind: str) -> frozenset[str]:
+    entries = list(islice(values, limit + 1))
+    if not entries or len(entries) > limit or any(not _symbol(v) for v in entries):
+        raise AdmissionError("invalid or excessive " + kind)
+    if len(set(entries)) != len(entries):
+        raise AdmissionError("duplicate " + kind)
+    return frozenset(entries)
 
 
 class AdmissionError(ValueError):
@@ -37,46 +63,57 @@ class Handle:
     owner: int
     slot: int
     generation: int
+    incarnation: int = 0  # minted per store; default represents an inadmissible forged handle
 
 
+@dataclass(frozen=True, init=False)
 class RuleTable:
-    """Closed, non-overlapping, immutable logical (state,event)->(state,action)."""
+    """Closed immutable table; supported tags are a bounded ASCII Symbol subset."""
+
+    states: frozenset[str]
+    events: frozenset[str]
+    rules: object
 
     def __init__(self, states: Iterable[str], events: Iterable[str],
                  rules: Iterable[tuple[str, str, str, str]]) -> None:
-        self.states = frozenset(states)
-        self.events = frozenset(events)
-        if not self.states or not self.events:
-            raise AdmissionError("empty FSM vocabulary")
-        if any(not isinstance(s, str) or not s.startswith("#") for s in self.states | self.events):
-            raise AdmissionError("only symbolic labels admitted in reference model")
+        known_states = _bounded_labels(states, MAX_STATES, "states")
+        known_events = _bounded_labels(events, MAX_EVENTS, "events")
         checked: dict[tuple[str, str], tuple[str, str]] = {}
-        for src, event, dest, action in rules:
-            if src not in self.states or dest not in self.states or event not in self.events:
+        for index, rule in enumerate(rules):
+            if index >= MAX_RULES:
+                raise AdmissionError("excessive transitions")
+            if not isinstance(rule, tuple) or len(rule) != 4:
+                raise AdmissionError("malformed transition")
+            src, event, dest, action = rule
+            if src not in known_states or dest not in known_states or event not in known_events:
                 raise AdmissionError("undeclared state or event")
-            if not isinstance(action, str) or not action.startswith("#"):
+            if not _symbol(action):
                 raise AdmissionError("invalid action label")
             key = (src, event)
             if key in checked:
                 raise AdmissionError("duplicate transition")
             checked[key] = (dest, action)
-        from types import MappingProxyType
-        self.rules = MappingProxyType(checked)
+        object.__setattr__(self, "states", known_states)
+        object.__setattr__(self, "events", known_events)
+        object.__setattr__(self, "rules", MappingProxyType(checked))
 
 
 def step(table: RuleTable, machine: Machine, event: str, *,
          guard: bool = True, action_credits: int = 1) -> Outcome:
-    """Pure, total transition. Rejections never advance version or emit actions."""
-    if machine.state not in table.states or not (0 <= machine.version <= MAX_VERSION):
+    """Pure transition; every rejection preserves state/version and emits nothing."""
+    if (not isinstance(machine, Machine) or not _symbol(machine.state)
+            or type(machine.version) is not int
+            or machine.state not in table.states
+            or not (0 <= machine.version <= MAX_VERSION)):
         return Outcome(machine, (), False, "invalid-machine")
-    if event not in table.events:
+    if not _symbol(event) or event not in table.events:
         return Outcome(machine, (), False, "undeclared-event")
     rule = table.rules.get((machine.state, event))
     if rule is None:
         return Outcome(machine, (), False, "no-rule")
-    if not guard:
+    if guard is not True:
         return Outcome(machine, (), False, "guard")
-    if action_credits < 1:
+    if type(action_credits) is not int or action_credits < 1:
         return Outcome(machine, (), False, "effect-capacity")
     if machine.version == MAX_VERSION:
         return Outcome(machine, (), False, "version-overflow")
@@ -102,15 +139,23 @@ def demo_table() -> RuleTable:
 class LayoutStore:
     """One live AoS/SoA/AoSoA representation and generational logical handles."""
 
-    def __init__(self, layout: str, capacity: int, *, owner: int = 1, lanes: int = 4):
+    def __init__(self, layout: str, capacity: int, *, owner: int = 1, lanes: int = 4,
+                 outbox_capacity: int = 64):
         if layout not in ("aos", "soa", "aosoa"):
             raise AdmissionError("unsupported layout")
-        if capacity < 0 or owner <= 0 or (layout == "aosoa" and lanes < 1):
+        if (type(capacity) is not int or not 0 <= capacity <= MAX_CAPACITY
+                or type(owner) is not int or owner <= 0
+                or type(lanes) is not int or not 1 <= lanes <= MAX_LANES
+                or type(outbox_capacity) is not int
+                or not 0 <= outbox_capacity <= MAX_OUTBOX):
             raise AdmissionError("invalid storage configuration")
         self.layout = layout
         self.capacity = capacity
         self.owner = owner
         self.lanes = lanes
+        self.incarnation = next(_NEXT_INCARCERATION)
+        self.outbox_capacity = outbox_capacity
+        self._outbox: list[tuple[Handle, str]] = []
         self._slots: list[list[int | None]] = []  # generation, dense offset
         self._free: list[int] = []
         self._dense_slots: list[int] = []
@@ -175,8 +220,15 @@ class LayoutStore:
                 self._chunks.pop()
 
     def _resolve(self, handle: Handle) -> int:
-        if handle.owner != self.owner or not (0 <= handle.slot < len(self._slots)):
-            raise AdmissionError("foreign or out-of-bounds handle")
+        if (not isinstance(handle, Handle)
+                or type(handle.owner) is not int or handle.owner != self.owner
+                or type(handle.incarnation) is not int
+                or handle.incarnation != self.incarnation
+                or type(handle.slot) is not int
+                or not (0 <= handle.slot < len(self._slots))
+                or type(handle.generation) is not int
+                or not (0 <= handle.generation <= MAX_GENERATION)):
+            raise AdmissionError("foreign, obsolete or out-of-bounds handle")
         gen, dense = self._slots[handle.slot]
         if gen != handle.generation or dense is None:
             raise AdmissionError("stale handle")
@@ -188,9 +240,14 @@ class LayoutStore:
         self._ensure_exclusive()
         if len(self) >= self.capacity:
             raise AdmissionError("capacity exhausted")
-        if machine.version < 0 or machine.version > MAX_VERSION or not machine.state.startswith("#"):
+        if (not isinstance(machine, Machine) or not _symbol(machine.state)
+                or type(machine.version) is not int
+                or not 0 <= machine.version <= MAX_VERSION):
             raise AdmissionError("invalid machine")
-        # All admission checks precede changes; no failed half-insert.
+        if not self._free and len(self._slots) >= self.capacity:
+            raise AdmissionError("retired slots exhausted")
+        # Admission precedes writes. This model does not simulate MemoryError
+        # during Python list appends; a runtime implementation must roll back.
         slot = self._free.pop() if self._free else len(self._slots)
         if slot == len(self._slots):
             self._slots.append([0, None])
@@ -199,7 +256,7 @@ class LayoutStore:
         self._push_dense(machine)
         self._dense_slots.append(slot)
         self._slots[slot][1] = dense
-        return Handle(self.owner, slot, gen)
+        return Handle(self.owner, slot, gen, self.incarnation)
 
     def read(self, handle: Handle) -> Machine:
         return self._get_dense(self._resolve(handle))
@@ -208,11 +265,34 @@ class LayoutStore:
               guard: bool = True, action_credits: int = 1) -> Outcome:
         self._ensure_exclusive()
         dense = self._resolve(handle)
-        outcome = step(table, self._get_dense(dense), event,
-                       guard=guard, action_credits=action_credits)
+        old = self._get_dense(dense)
+        available = min(action_credits, self.outbox_capacity - len(self._outbox)) if (
+            type(action_credits) is int) else 0
+        outcome = step(table, old, event, guard=guard, action_credits=available)
         if outcome.accepted:
-            self._put_dense(dense, outcome.machine)
+            # Reserve in the bounded outbox before committing state. No external
+            # dispatch happens inside the mutation; the caller drains later.
+            self._outbox.append((handle, outcome.actions[0]))
+            try:
+                self._put_dense(dense, outcome.machine)
+            except Exception:
+                self._put_dense(dense, old)
+                self._outbox.pop()
+                raise
         return outcome
+
+    def drain_actions(self, max_count: int | None = None) -> tuple[tuple[Handle, str], ...]:
+        self._ensure_exclusive()
+        if max_count is None:
+            max_count = len(self._outbox)
+        if type(max_count) is not int or max_count < 0:
+            raise AdmissionError("invalid drain bound")
+        drained = tuple(self._outbox[:max_count])
+        del self._outbox[:max_count]
+        return drained
+
+    def queued_actions(self) -> tuple[tuple[Handle, str], ...]:
+        return tuple(self._outbox)
 
     def remove(self, handle: Handle) -> Machine:
         self._ensure_exclusive()
@@ -226,32 +306,48 @@ class LayoutStore:
             self._slots[moved_slot][1] = dense
         self._pop_dense()
         self._dense_slots.pop()
-        self._slots[handle.slot][0] += 1
+        # Retirement, not integer wraparound: after MAX_GENERATION the slot
+        # becomes permanently unusable within this incarnation.
+        if self._slots[handle.slot][0] < MAX_GENERATION:
+            self._slots[handle.slot][0] += 1
+            self._free.append(handle.slot)
         self._slots[handle.slot][1] = None
-        self._free.append(handle.slot)
         return old
+
+    @staticmethod
+    def _encode_rows(rows: list[Machine], layout: str, lane_count: int):
+        """Build full target storage off to the side before publication."""
+        aos: list[Machine] = []
+        states: list[str] = []
+        versions: list[int] = []
+        chunks: list[tuple[list[str | None], list[int | None]]] = []
+        for i, row in enumerate(rows):
+            if layout == "aos":
+                aos.append(row)
+            elif layout == "soa":
+                states.append(row.state)
+                versions.append(row.version)
+            else:
+                if i % lane_count == 0:
+                    chunks.append(([None] * lane_count, [None] * lane_count))
+                chunk_states, chunk_versions = chunks[i // lane_count]
+                chunk_states[i % lane_count] = row.state
+                chunk_versions[i % lane_count] = row.version
+        return aos, states, versions, chunks
 
     def relayout(self, layout: str, *, lanes: int | None = None) -> None:
         self._ensure_exclusive()
         if layout not in ("aos", "soa", "aosoa"):
             raise AdmissionError("unsupported layout")
         lane_count = self.lanes if lanes is None else lanes
-        if lane_count < 1:
+        if type(lane_count) is not int or not 1 <= lane_count <= MAX_LANES:
             raise AdmissionError("invalid lane count")
         rows = [self._get_dense(i) for i in range(len(self))]
-        # Rebuild as an independent proposed physical layout.
+        # Exceptions during construction leave the old representation intact.
+        new_storage = self._encode_rows(rows, layout, lane_count)
         self.layout, self.lanes = layout, lane_count
-        self._aos, self._states, self._versions, self._chunks = [], [], [], []
-        for i, row in enumerate(rows):
-            if self.layout == "aos":
-                self._aos.append(row)
-            elif self.layout == "soa":
-                self._states.append(row.state)
-                self._versions.append(row.version)
-            else:
-                if i % self.lanes == 0:
-                    self._chunks.append(([None] * self.lanes, [None] * self.lanes))
-                self._put_dense(i, row)
+        self._aos, self._states, self._versions, self._chunks = new_storage
+
 
     @contextmanager
     def read_loan(self) -> Iterator[None]:
@@ -264,10 +360,24 @@ class LayoutStore:
     def check_invariants(self) -> None:
         assert len(set(self._dense_slots)) == len(self)
         assert len(self) <= self.capacity
+        assert len(self._slots) <= self.capacity
+        assert len(set(self._free)) == len(self._free)
+        assert all(0 <= x < len(self._slots) for x in self._free)
+        assert set(self._free) | set(self._dense_slots) <= set(range(len(self._slots)))
+        assert all(0 <= slot[0] <= MAX_GENERATION for slot in self._slots)
+        assert len(self._outbox) <= self.outbox_capacity
+        assert all(h.incarnation == self.incarnation and h.owner == self.owner
+                   and _symbol(tag) for h, tag in self._outbox)
         for dense, slot in enumerate(self._dense_slots):
             assert self._slots[slot][1] == dense
             assert self._slots[slot][0] >= 0
         assert set(self._free).isdisjoint(self._dense_slots)
+        for slot, (gen, dense) in enumerate(self._slots):
+            assert (dense is None) == (slot not in self._dense_slots)
+            if dense is None and gen < MAX_GENERATION:
+                assert slot in self._free
+            if dense is None and gen == MAX_GENERATION:
+                assert slot not in self._free
         if self.layout == "aos":
             assert len(self._aos) == len(self)
             assert not self._states and not self._versions and not self._chunks
