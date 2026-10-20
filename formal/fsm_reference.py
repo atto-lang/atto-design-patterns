@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from contextlib import contextmanager
 from copy import deepcopy
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from itertools import count, islice
 from re import fullmatch
 from types import MappingProxyType
@@ -66,6 +66,13 @@ class Handle:
     slot: int
     generation: int
     incarnation: int = 0  # minted per store; default represents an inadmissible forged handle
+    _issuer: object = field(default=None, repr=False, compare=False)
+
+    def __deepcopy__(self, memo):
+        # Immutable bearer handles retain their issuer identity during an
+        # outbox/snapshot rollback. deepcopy(object()) otherwise invents a
+        # different issuer and silently corrupts restored receipts.
+        return self
 
 
 @dataclass(frozen=True, init=False)
@@ -156,6 +163,7 @@ class LayoutStore:
         self.owner = owner
         self.lanes = lanes
         self.incarnation = next(_NEXT_INCARNATION)
+        self._issuer = object()  # reference-only opaque bearer capability
         self.outbox_capacity = outbox_capacity
         self._outbox: list[tuple[Handle, str]] = []
         self._slots: list[list[int | None]] = []  # generation, dense offset
@@ -247,7 +255,7 @@ class LayoutStore:
                 self._chunks.pop()
 
     def _resolve(self, handle: Handle) -> int:
-        if (not isinstance(handle, Handle)
+        if (type(handle) is not Handle or handle._issuer is not self._issuer
                 or type(handle.owner) is not int or handle.owner != self.owner
                 or type(handle.incarnation) is not int
                 or handle.incarnation != self.incarnation
@@ -284,7 +292,7 @@ class LayoutStore:
             self._push_dense(machine)
             self._dense_slots.append(slot)
             self._slots[slot][1] = dense
-            return Handle(self.owner, slot, gen, self.incarnation)
+            return Handle(self.owner, slot, gen, self.incarnation, self._issuer)
 
     def read(self, handle: Handle) -> Machine:
         return self._get_dense(self._resolve(handle))
@@ -393,7 +401,8 @@ class LayoutStore:
         assert all(0 <= slot[0] <= MAX_GENERATION for slot in self._slots)
         assert len(self._outbox) <= self.outbox_capacity
         assert all(h.incarnation == self.incarnation and h.owner == self.owner
-                   and _symbol(tag) for h, tag in self._outbox)
+                   and h._issuer is self._issuer and _symbol(tag)
+                   for h, tag in self._outbox)
         for dense, slot in enumerate(self._dense_slots):
             assert self._slots[slot][1] == dense
             assert self._slots[slot][0] >= 0
