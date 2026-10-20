@@ -78,8 +78,8 @@ system using ECS entity IDs and one selectable AoS, SoA or AoSoA physical
 storage layout. Neither design requires actors; optional stdlib/otp/gen_statem
 may wrap the same reducer over an actor in a later PR.
 
-The accompanying [bounded Python reference model](formal/fsm_reference.py)
-, [exhaustive small-trace tests](formal/test_fsm_reference.py) and
+The accompanying [bounded Python reference model](formal/fsm_reference.py),
+[exhaustive small-trace tests](formal/test_fsm_reference.py) and
 [adversarial hardening regressions](formal/test_fsm_hardening.py) exercise
 transition parity, failed-guard no-op semantics, bounded outbox admission,
 store-incarnation and generation fencing, swap-delete, injected relayout failure,
