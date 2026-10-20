@@ -1,0 +1,23 @@
+// Symbol-driven FSM reducer example for compiler conformance.
+// Parser, typechecker and executable guest-source tests are still required.
+
+define module fsm_symbol_reducer as
+  pub fnc next_state(Symbol state, Symbol event): Symbol {
+    if state == #idle && event == #start then
+      return #running;
+    fi
+    if state == #running && event == #stop then
+      return #done;
+    fi
+    if state == #done && event == #reset then
+      return #idle;
+    fi
+    return #rejected;
+  }
+end
+
+pub routine main(): void {
+  stdio.println(fsm_symbol_reducer.next_state(#idle, #start));
+  stdio.println(fsm_symbol_reducer.next_state(#idle, #stop));
+  return;
+}
