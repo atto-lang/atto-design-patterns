@@ -22,7 +22,7 @@ MAX_RULES = 256
 MAX_CAPACITY = 64
 MAX_LANES = 16
 MAX_OUTBOX = 256
-_NEXT_INCARCERATION = count(1)
+_NEXT_INCARNATION = count(1)
 
 
 def _symbol(value: object) -> bool:
@@ -85,10 +85,10 @@ class RuleTable:
             if not isinstance(rule, tuple) or len(rule) != 4:
                 raise AdmissionError("malformed transition")
             src, event, dest, action = rule
+            if not all(_symbol(tag) for tag in (src, event, dest, action)):
+                raise AdmissionError("invalid transition tag")
             if src not in known_states or dest not in known_states or event not in known_events:
                 raise AdmissionError("undeclared state or event")
-            if not _symbol(action):
-                raise AdmissionError("invalid action label")
             key = (src, event)
             if key in checked:
                 raise AdmissionError("duplicate transition")
@@ -153,7 +153,7 @@ class LayoutStore:
         self.capacity = capacity
         self.owner = owner
         self.lanes = lanes
-        self.incarnation = next(_NEXT_INCARCERATION)
+        self.incarnation = next(_NEXT_INCARNATION)
         self.outbox_capacity = outbox_capacity
         self._outbox: list[tuple[Handle, str]] = []
         self._slots: list[list[int | None]] = []  # generation, dense offset
@@ -308,9 +308,11 @@ class LayoutStore:
         self._dense_slots.pop()
         # Retirement, not integer wraparound: after MAX_GENERATION the slot
         # becomes permanently unusable within this incarnation.
-        if self._slots[handle.slot][0] < MAX_GENERATION:
+        if self._slots[handle.slot][0] + 1 < MAX_GENERATION:
             self._slots[handle.slot][0] += 1
             self._free.append(handle.slot)
+        else:
+            self._slots[handle.slot][0] = MAX_GENERATION
         self._slots[handle.slot][1] = None
         return old
 
