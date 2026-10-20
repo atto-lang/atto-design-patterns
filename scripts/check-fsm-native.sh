@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
-# Explicit native guest-source gate. Do not silently downgrade to Python stubs.
+# Explicit native guest-source gate: missing compiler and unsupported syntax fail.
 set -euo pipefail
+if [[ "$#" -gt 1 ]] || { [[ "$#" -eq 1 ]] && [[ "$1" != "--execute" ]]; }; then
+  echo "usage: $0 [--execute]" >&2
+  exit 64
+fi
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 compiler="${ORESLANG_BIN:-oreslang}"
 fixture="$root/examples/fsm/01-symbol-reducer.ores"
@@ -11,7 +15,4 @@ fi
 "$compiler" check "$fixture"
 if [[ "${1:-}" == "--execute" ]]; then
   "$compiler" run "$fixture"
-elif [[ "$#" -gt 0 ]]; then
-  echo "usage: $0 [--execute]" >&2
-  exit 64
 fi
