@@ -67,3 +67,28 @@ probe against compiler `5ffc52d9297d175307094d530293c69f1cafc7cd` found removed
 `obj{...}` syntax, reuse of moved `expr` in Visitor, and readonly collection
 mutation in ECS/SoA. Migrate to `infer struct`, explicit borrowing, and owned
 mutable buffers before pinning that compiler for complete native pattern CI.
+
+
+## Draft FSM alternatives: Symbol reducers vs ECS / layout stores
+
+A proposed follow-on to pattern 04 (State), 16 (ECS) and 17 (SoA) is documented in
+[docs/fsm-alternatives.md](docs/fsm-alternatives.md). It compares a closed
+Symbol-driven pure reducer/static transition table with a data-oriented FSM
+system using ECS entity IDs and one selectable AoS, SoA or AoSoA physical
+storage layout. Neither design requires actors; optional stdlib/otp/gen_statem
+may wrap the same reducer over an actor in a later PR.
+
+The accompanying [bounded Python reference model](formal/fsm_reference.py),
+[exhaustive small-trace tests](formal/test_fsm_reference.py) and
+[adversarial hardening regressions](formal/test_fsm_hardening.py) exercise
+transition parity, failed-guard no-op semantics, bounded outbox admission,
+store-incarnation and generation fencing, swap-delete, injected relayout failure,
+tail lanes and borrow/relayout exclusion:
+
+~~~bash
+python3 -m unittest discover -s formal -p 'test_fsm_*.py' -v
+~~~
+
+This is an abstract executable conformance model, **not** proof of the real
+Oreslang compiler, an actor runtime, or native SoA/AoSoA codegen. The guest
+syntax in the RFC is illustrative until exact-head compiler verification.
