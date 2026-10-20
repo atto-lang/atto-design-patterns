@@ -7,6 +7,7 @@ AoSoA SIMD, real borrow checking, parallel ECS, or a proof about any backend.
 from __future__ import annotations
 
 from contextlib import contextmanager
+from copy import deepcopy
 from dataclasses import dataclass
 from itertools import count, islice
 from re import fullmatch
@@ -27,7 +28,8 @@ _NEXT_INCARNATION = count(1)
 
 def _symbol(value: object) -> bool:
     """Conservative subset of canonical ASCII #symbol literals (not guest lexer)."""
-    return (type(value) is str and len(value.encode("utf-8")) <= 128
+    return (type(value) is str and value.isascii()
+            and len(value) <= 128
             and fullmatch(r"#[A-Za-z_][A-Za-z0-9_]*", value) is not None)
 
 
@@ -172,6 +174,31 @@ class LayoutStore:
         if self._loans:
             raise AdmissionError("active borrow")
 
+    def _snapshot(self):
+        """Whole-store rollback witness; deliberately O(n), model-only."""
+        names = ("_slots", "_free", "_dense_slots", "_aos", "_states",
+                 "_versions", "_chunks", "_outbox")
+        return tuple(deepcopy(getattr(self, name)) for name in names)
+
+    def _restore(self, snapshot) -> None:
+        names = ("_slots", "_free", "_dense_slots", "_aos", "_states",
+                 "_versions", "_chunks", "_outbox")
+        for name, value in zip(names, snapshot):
+            setattr(self, name, value)
+
+    @contextmanager
+    def _atomic_mutation(self) -> Iterator[None]:
+        """Roll back Python list operations even on injected MemoryError.
+
+        An executable reference protocol, NOT native crash-atomic storage.
+        """
+        snapshot = self._snapshot()
+        try:
+            yield
+        except BaseException:
+            self._restore(snapshot)
+            raise
+
     def _get_dense(self, dense: int) -> Machine:
         if self.layout == "aos":
             return self._aos[dense]
@@ -246,17 +273,18 @@ class LayoutStore:
             raise AdmissionError("invalid machine")
         if not self._free and len(self._slots) >= self.capacity:
             raise AdmissionError("retired slots exhausted")
-        # Admission precedes writes. This model does not simulate MemoryError
-        # during Python list appends; a runtime implementation must roll back.
-        slot = self._free.pop() if self._free else len(self._slots)
-        if slot == len(self._slots):
-            self._slots.append([0, None])
-        gen = self._slots[slot][0]
-        dense = len(self._dense_slots)
-        self._push_dense(machine)
-        self._dense_slots.append(slot)
-        self._slots[slot][1] = dense
-        return Handle(self.owner, slot, gen, self.incarnation)
+        # Prototype reference uses a snapshot for failure atomicity; a real
+        # runtime should preallocate and implement bounded rollback/commit.
+        with self._atomic_mutation():
+            slot = self._free.pop() if self._free else len(self._slots)
+            if slot == len(self._slots):
+                self._slots.append([0, None])
+            gen = self._slots[slot][0]
+            dense = len(self._dense_slots)
+            self._push_dense(machine)
+            self._dense_slots.append(slot)
+            self._slots[slot][1] = dense
+            return Handle(self.owner, slot, gen, self.incarnation)
 
     def read(self, handle: Handle) -> Machine:
         return self._get_dense(self._resolve(handle))
@@ -270,15 +298,11 @@ class LayoutStore:
             type(action_credits) is int) else 0
         outcome = step(table, old, event, guard=guard, action_credits=available)
         if outcome.accepted:
-            # Reserve in the bounded outbox before committing state. No external
-            # dispatch happens inside the mutation; the caller drains later.
-            self._outbox.append((handle, outcome.actions[0]))
-            try:
+            # Reserve bounded local outbox before state publication; any
+            # partial Python mutation is reverted by the reference snapshot.
+            with self._atomic_mutation():
+                self._outbox.append((handle, outcome.actions[0]))
                 self._put_dense(dense, outcome.machine)
-            except Exception:
-                self._put_dense(dense, old)
-                self._outbox.pop()
-                raise
         return outcome
 
     def drain_actions(self, max_count: int | None = None) -> tuple[tuple[Handle, str], ...]:
@@ -298,22 +322,22 @@ class LayoutStore:
         self._ensure_exclusive()
         dense = self._resolve(handle)
         old = self._get_dense(dense)
-        last = len(self) - 1
-        if dense != last:
-            moved_slot = self._dense_slots[last]
-            self._put_dense(dense, self._get_dense(last))
-            self._dense_slots[dense] = moved_slot
-            self._slots[moved_slot][1] = dense
-        self._pop_dense()
-        self._dense_slots.pop()
-        # Retirement, not integer wraparound: after MAX_GENERATION the slot
-        # becomes permanently unusable within this incarnation.
-        if self._slots[handle.slot][0] + 1 < MAX_GENERATION:
-            self._slots[handle.slot][0] += 1
-            self._free.append(handle.slot)
-        else:
-            self._slots[handle.slot][0] = MAX_GENERATION
-        self._slots[handle.slot][1] = None
+        with self._atomic_mutation():
+            last = len(self) - 1
+            if dense != last:
+                moved_slot = self._dense_slots[last]
+                self._put_dense(dense, self._get_dense(last))
+                self._dense_slots[dense] = moved_slot
+                self._slots[moved_slot][1] = dense
+            self._pop_dense()
+            self._dense_slots.pop()
+            # No wraparound: MAX_GENERATION is terminal retirement.
+            if self._slots[handle.slot][0] + 1 < MAX_GENERATION:
+                self._slots[handle.slot][0] += 1
+                self._free.append(handle.slot)
+            else:
+                self._slots[handle.slot][0] = MAX_GENERATION
+            self._slots[handle.slot][1] = None
         return old
 
     @staticmethod
