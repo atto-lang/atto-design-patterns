@@ -53,6 +53,8 @@ class FSMHardeningTests(unittest.TestCase):
             store = LayoutStore(layout, capacity=2, owner=42)
             h = store.insert(Machine("#idle"))
             reconstructed = Handle(h.owner, h.slot, h.generation, h.incarnation)
+            self.assertNotEqual(reconstructed, h)
+            self.assertEqual({h: "authorized"}.get(reconstructed), None)
             with self.assertRaises(AdmissionError):
                 store.read(reconstructed)
             with self.assertRaises(AdmissionError):
