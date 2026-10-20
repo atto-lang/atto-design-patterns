@@ -124,6 +124,24 @@ No compiler/library source is claimed implemented by this RFC. Keep the PR **dra
 - **Finiteness:** model maxima are 32 states, 32 events, 256 edges, 64 live/retired slots, 16 lanes, 256 outbox entries and version 7. These are test bounds, *not* suggested runtime defaults or WCET certificates.
 - **Adversarial regression corpus:** deterministic cross-layout randomized oracles, malicious handles and malformed labels, stale-incarnation and bounded-generation exhaustion, drained/rejected effects, injected relayout failure and fixed-layout parity complement exhaustive 781-trace runs.
 
+### Additional handle-capability hardening — October 20, 2026
+
+The finite Python model now includes a fresh, per-store bearer-issuer object in each
+issued handle. A handle reconstructed from public owner/slot/generation/incarnation
+integers is rejected even when every integer matches, and the issuer also participates
+in equality/hash semantics. Immutable handle deepcopy preserves issuer identity across
+rollback snapshots, outbox retention and physical layout migration. Targeted tests
+include forged reads, writes, deletions, equality collisions and fault rollback.
+
+**Threat-model boundary:** Python's `_issuer` attribute is inspectable and is **not**
+a cryptographic secret, production authorization proof, or protection from arbitrary
+host Python with reflection. Real Oreslang must represent the issuer as a
+verifier-minted, unforgeable opaque capability scoped to actor/heap/tenant and
+lifecycle generation, not caller-constructible public fields. Refuse deserialized
+capabilities unless an authorized import/export policy reissues and binds them.
+This draft is still a synchronous abstract model, not a parallel or crash-consistent
+implementation.
+
 ### Explicit limitations / review blockers
 
 1. \`read_loan\` is a **whole-store synchronous model fence**, not a field-sensitive borrow checker. It does not model \`await\`, actual suspension frames, aliasing across Task/actor domains, or adversarial concurrent threads.
