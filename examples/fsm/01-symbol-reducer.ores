@@ -14,7 +14,10 @@ define module fsm_symbol_reducer as
     if state == #paused && event == #resume then
       return #running;
     fi
-    if (state == #running || state == #paused) && event == #stop then
+    if state == #running && event == #stop then
+      return #done;
+    fi
+    if state == #paused && event == #stop then
       return #done;
     fi
     if state == #done && event == #reset then
