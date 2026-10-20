@@ -6,7 +6,8 @@ Oreslang compiler, a real atomic outbox, parallel ECS or physical realtime code.
 
 import random
 import unittest
-from dataclasses import FrozenInstanceError
+from copy import deepcopy
+from dataclasses import FrozenInstanceError, replace
 from unittest.mock import patch
 
 from fsm_reference import (
@@ -44,6 +45,42 @@ class FSMHardeningTests(unittest.TestCase):
                 new.read(stale)
             self.assertEqual(new.read(valid), Machine("#running"))
             new.check_invariants()
+
+    def test_predictable_id_handle_reconstruction_does_not_grant_access(self):
+        # The ordinal/generation/incarnation fields are deliberately visible
+        # in the host model. Knowledge of them alone must not mint a capability.
+        for layout in LAYOUTS:
+            store = LayoutStore(layout, capacity=2, owner=42)
+            h = store.insert(Machine("#idle"))
+            reconstructed = Handle(h.owner, h.slot, h.generation, h.incarnation)
+            with self.assertRaises(AdmissionError):
+                store.read(reconstructed)
+            with self.assertRaises(AdmissionError):
+                store.apply(reconstructed, self.table, "#start")
+            with self.assertRaises(AdmissionError):
+                store.remove(reconstructed)
+            with self.assertRaises(AdmissionError):
+                store.read(replace(h, _issuer=object()))
+            self.assertEqual(store.read(h), Machine("#idle"))
+            self.assertEqual(deepcopy(h), h)
+            self.assertIs(deepcopy(h), h)
+            store.check_invariants()
+
+    def test_issuer_is_stable_through_rollback_and_layout_migration(self):
+        for layout in LAYOUTS:
+            store = LayoutStore(layout, capacity=1, owner=42, outbox_capacity=2)
+            h = store.insert(Machine("#idle"))
+            self.assertTrue(store.apply(h, self.table, "#start").accepted)
+            recorded = store.queued_actions()
+            with patch.object(store, "_put_dense", side_effect=MemoryError("injected")):
+                with self.assertRaises(MemoryError):
+                    store.apply(h, self.table, "#stop")
+            self.assertEqual(store.queued_actions(), recorded)
+            self.assertIs(store.queued_actions()[0][0], h)
+            store.relayout({"aos":"soa", "soa":"aosoa", "aosoa":"aos"}[layout])
+            self.assertEqual(store.read(h), Machine("#running", 1))
+            self.assertEqual(store.drain_actions(), ((h, "#started"),))
+            store.check_invariants()
 
     def test_generation_exhaustion_never_wraps(self):
         for layout in LAYOUTS:
