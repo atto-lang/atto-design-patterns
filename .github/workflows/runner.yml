@@ -24,3 +24,5 @@ jobs:
           done < <(find scripts -type f -name '*.sh' -print0)
       - name: Verify runner failure and invocation contracts
         run: bash scripts/test-runner.sh
+      - name: Check bounded FSM reference model
+        run: python3 -m unittest discover -s formal -p 'test_fsm_*.py' -v
