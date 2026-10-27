@@ -1,0 +1,4 @@
+pattern-execution	java	execution
+pattern-ownership	java	execution
+pattern-scope	java	execution
+negative-admission	java	rejection
