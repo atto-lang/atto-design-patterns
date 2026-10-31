@@ -39,7 +39,7 @@ fn source_edges_match_immutable_reference_table() {
     assert!(SOURCE.contains("return #rejected;"));
     assert!(SOURCE.contains("define module fsm_symbol_reducer as"));
     assert!(SOURCE.contains("pub routine main(): void"));
-    assert!(!demo_table().edges().contains_key(&("#rejected".into(), "#start".into())));
+    assert!(!demo_table().has_state("#rejected"), "sentinel cannot become a live state");
 }
 
 #[test]
