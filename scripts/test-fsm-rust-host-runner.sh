@@ -25,6 +25,9 @@ if [[ "${1:-}" == --version ]]; then echo 'cargo fake-tool 0'; exit 0; fi
 printf '%s\n' "$1" >> "$FSM_TEST_LOG"
 if [[ "${FSM_TEST_FAIL:-}" == "$1" ]]; then exit 45; fi
 if [[ "${FSM_TEST_MUTATE:-}" == "$1" ]]; then printf 'injected mutation\n' >> tools/fsm-model/src/lib.rs; fi
+if [[ "${FSM_TEST_MUTATE_TOOL:-}" == last-doc-test && " $* " == *" --doc "* ]]; then
+  printf '\n# injected compiler wrapper mutation after final stage\n' >> "$0"
+fi
 CARGO
 cat > "$bin/rustc" <<'RUSTC'
 #!/usr/bin/env bash
@@ -88,8 +91,17 @@ check_status 69 env ORESLANG_EXPECTED_HEAD="$head" bash "$work/scripts/verify-fs
 test ! -s "$FSM_TEST_LOG"
 (cd "$work" && git restore examples/fsm/01-symbol-reducer.ores)
 
+# The test double alters its own bytes only after the final Cargo doc-test
+# invocation. A success marker must not be emitted for changed toolchain bytes.
+: > "$FSM_TEST_LOG"
+check_status 70 env ORESLANG_EXPECTED_HEAD="$head" FSM_TEST_MUTATE_TOOL=last-doc-test bash "$work/scripts/verify-fsm-rust-host.sh" --execute
+grep -Fq 'host tool changed during execution: cargo' "$tmp/output.log"
+if grep -q 'RUST_FSM_HOST_CHECKS_PASSED' "$tmp/output.log"; then exit 1; fi
+cmp -s -- "$tmp/stages.expected" "$FSM_TEST_LOG"
+
 mv "$work/tools/fsm-model/Cargo.lock" "$tmp/Cargo.lock"
 : > "$FSM_TEST_LOG"
 check_status 69 env ORESLANG_EXPECTED_HEAD="$head" bash "$work/scripts/verify-fsm-rust-host.sh" --execute
 test ! -s "$FSM_TEST_LOG"
+
 printf '%s\n' 'fsm rust host verification shell contracts: PASS (fake tools only)'

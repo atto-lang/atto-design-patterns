@@ -66,13 +66,21 @@ trap 'rm -rf -- "$target_dir"' EXIT
 export CARGO_TARGET_DIR="$target_dir" CARGO_NET_OFFLINE=true
 manifest="$root/tools/fsm-model/Cargo.toml"
 
-# Record resolved host executable paths and hashes for evidence only;
-# a reported digest is NOT an independently trusted binary pin.
+# Record resolved host executable paths and digests as integrity fences.
+# The hashes are local integrity evidence, NOT independent toolchain provenance.
+declare -A host_tool_paths host_tool_digests
 for command_name in git rustc cargo rustfmt; do
   resolved="$(command -v -- "$command_name")"
   resolved="$(readlink -f -- "$resolved")"
-  printf "HOST_TOOL_%s=%s\n" "$command_name" "$resolved"
-  sha256sum -- "$resolved"
+  if [[ ! -f "$resolved" || ! -x "$resolved" ]]; then
+    echo "rust FSM blocked: invalid host tool: $command_name" >&2
+    exit 69
+  fi
+  host_tool_paths[$command_name]="$resolved"
+  digest="$(sha256sum -- "$resolved")"
+  host_tool_digests[$command_name]="${digest%% *}"
+  printf 'HOST_TOOL_%s=%s\n' "$command_name" "$resolved"
+  printf 'HOST_TOOL_SHA256_%s=%s\n' "$command_name" "${host_tool_digests[$command_name]}"
 done
 printf '%s\n' "HEAD=$actual"
 printf '%s\n' "TREE=$(git rev-parse HEAD^{tree})"
@@ -85,6 +93,21 @@ cargo fmt --manifest-path "$manifest" -- --check
 cargo clippy --manifest-path "$manifest" --offline --locked --all-targets -- -D warnings
 cargo test --manifest-path "$manifest" --offline --locked --all-targets
 cargo test --manifest-path "$manifest" --offline --locked --doc
+
+# A matching final result cannot certify a toolchain that changed during
+# verification. Recheck both the PATH resolution and the binary contents.
+for command_name in git rustc cargo rustfmt; do
+  current="$(readlink -f -- "$(command -v -- "$command_name")")"
+  if [[ "$current" != "${host_tool_paths[$command_name]}" || ! -f "$current" ]]; then
+    echo "rust FSM blocked: host tool path changed: $command_name" >&2
+    exit 70
+  fi
+  digest="$(sha256sum -- "$current")"
+  if [[ "${digest%% *}" != "${host_tool_digests[$command_name]}" ]]; then
+    echo "rust FSM blocked: host tool changed during execution: $command_name" >&2
+    exit 70
+  fi
+done
 
 after="$(sha256sum -- "${files[@]}")"
 if [[ "$before" != "$after" || "$(git rev-parse HEAD)" != "$expected" ||
