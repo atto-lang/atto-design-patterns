@@ -40,7 +40,7 @@ if [[ -n "$(git status --porcelain --untracked-files=normal)" ]]; then
   exit 69
 fi
 
-for command_name in git rustc cargo rustfmt sha256sum mktemp; do
+for command_name in git rustc cargo rustfmt sha256sum mktemp readlink; do
   if ! command -v -- "$command_name" > /dev/null 2>&1; then
     echo "rust FSM blocked: required host tool missing: $command_name" >&2
     exit 69
