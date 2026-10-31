@@ -65,6 +65,7 @@ rustfmt --version
 cargo fmt --manifest-path "$manifest" -- --check
 cargo clippy --manifest-path "$manifest" --offline --locked --all-targets -- -D warnings
 cargo test --manifest-path "$manifest" --offline --locked --all-targets
+cargo test --manifest-path "$manifest" --offline --locked --doc
 
 after="$(sha256sum -- "${files[@]}")"
 if [[ "$before" != "$after" || "$(git rev-parse HEAD)" != "$expected" ||
