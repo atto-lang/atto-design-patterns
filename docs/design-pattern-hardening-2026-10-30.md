@@ -32,8 +32,8 @@ For `--execute`, set a **previously independently established** lowercase 64-dig
 Example invocation, with no assumed digest:
 
 ```bash
-ORESLANG_BIN=/absolute/trusted/compiler \\
-ORESLANG_COMPILER_SHA256='<trusted-64-hex-sha256>' \\
+ORESLANG_BIN=/absolute/trusted/compiler \
+ORESLANG_COMPILER_SHA256='<trusted-64-hex-sha256>' \
 bash scripts/check-fsm-native.sh --execute
 ```
 
