@@ -217,6 +217,30 @@ fn swap_delete_and_store_recreation_fence_aba_handles() {
 }
 
 #[test]
+fn capacity_and_terminal_retirement_have_distinct_atomic_admission_errors() {
+    for layout in LAYOUTS {
+        let mut s = store(layout, 1, 0);
+        let first = s.insert(machine("#idle", 0)).unwrap();
+        let at_capacity = s.insert(machine("#running", 0)).unwrap_err();
+        assert_eq!(at_capacity.0, "capacity exhausted");
+        assert_eq!(s.read(&first).unwrap(), machine("#idle", 0));
+        assert!(s.invariants_hold());
+        s.remove(&first).unwrap();
+
+        for _ in 1..usize::from(MAX_GENERATION) {
+            let h = s.insert(machine("#idle", 0)).unwrap();
+            s.remove(&h).unwrap();
+            assert!(s.invariants_hold());
+        }
+        let exhausted = s.insert(machine("#idle", 0)).unwrap_err();
+        assert_eq!(exhausted.0, "retired slots exhausted");
+        assert_eq!(s.len(), 0);
+        assert!(s.queued_actions().is_empty());
+        assert!(s.invariants_hold());
+    }
+}
+
+#[test]
 fn generation_retirement_is_terminal_and_never_wraps() {
     let mut s = store(Layout::Aosoa, 1, 32);
     for _ in 0..usize::from(MAX_GENERATION) {

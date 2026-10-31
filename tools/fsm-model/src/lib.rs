@@ -293,8 +293,14 @@ impl LayoutStore {
     }
     fn insert_raw(&mut self, machine: Machine) -> Admitted<Handle> {
         self.exclusive()?;
-        if self.len() >= self.capacity || (self.free.is_empty() && self.slots.len() >= self.capacity) {
+        if self.len() >= self.capacity {
             return Err(AdmissionError("capacity exhausted"));
+        }
+        if self.free.is_empty() && self.slots.len() >= self.capacity {
+            // All remaining physical slots may be permanently retired after
+            // generation exhaustion; expanding the table would violate the
+            // bounded store contract even though no live row remains.
+            return Err(AdmissionError("retired slots exhausted"));
         }
         if !is_symbol(&machine.state) || machine.version > MAX_VERSION {
             return Err(AdmissionError("invalid machine"));
