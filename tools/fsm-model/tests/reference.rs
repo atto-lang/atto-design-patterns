@@ -246,36 +246,63 @@ fn malformed_and_over_capacity_admission_never_changes_slots() {
 }
 
 #[test]
-fn deterministic_corpus_has_no_implicit_global_scheduler_state() {
+fn deterministic_randomized_trace_checks_independent_logical_oracle() {
     let table = demo_table();
+    // The reference oracle is a logical map and an ordered effect list, not
+    // the physical AoS/SoA/AoSoA representation being tested.
     for layout in LAYOUTS {
         let mut s = store(layout, 5, 256);
         let mut seed: u64 = 20261019;
-        let mut handles = Vec::new();
+        let mut live = Vec::new();
+        let mut oracle = std::collections::HashMap::new();
+        let mut expected_actions = Vec::new();
         for _ in 0..260 {
             seed ^= seed << 13;
             seed ^= seed >> 7;
             seed ^= seed << 17;
             match seed % 5 {
-                0 if handles.len() < 5 => {
-                    if let Ok(h) = s.insert(machine("#idle", 0)) { handles.push(h); }
-                },
-                1 if !handles.is_empty() => {
-                    let h = handles[(seed as usize) % handles.len()].clone();
-                    let e = EVENTS[(seed as usize / 5) % EVENTS.len()];
-                    let _ = s.apply(&h, &table, e, true, 1).unwrap();
-                },
-                2 if !handles.is_empty() => {
-                    let index = (seed as usize) % handles.len();
-                    let h = handles.swap_remove(index);
-                    s.remove(&h).unwrap();
-                    assert!(s.read(&h).is_err());
-                },
-                3 => { s.relayout(LAYOUTS[(seed as usize / 5) % 3], 3).unwrap(); },
-                _ => { s.drain_actions(2).unwrap(); },
+                0 if live.len() < 5 => {
+                    if let Ok(h) = s.insert(machine("#idle", 0)) {
+                        assert!(oracle.insert(h.clone(), machine("#idle", 0)).is_none());
+                        live.push(h);
+                    }
+                }
+                1 if !live.is_empty() => {
+                    let h = live[(seed as usize) % live.len()].clone();
+                    let event = EVENTS[(seed as usize / 5) % EVENTS.len()];
+                    let previous = oracle.get(&h).expect("live oracle handle").clone();
+                    let credits = i32::from(expected_actions.len() < 256);
+                    let expected = step(&table, &previous, event, true, credits);
+                    let observed = s.apply(&h, &table, event, true, 1).unwrap();
+                    assert_eq!(observed, expected);
+                    if expected.accepted {
+                        oracle.insert(h.clone(), expected.machine);
+                        expected_actions.push((h, expected.actions[0].clone()));
+                    }
+                }
+                2 if !live.is_empty() => {
+                    let index = (seed as usize) % live.len();
+                    let h = live.swap_remove(index);
+                    let previous = oracle.remove(&h).expect("removed oracle handle");
+                    assert_eq!(s.remove(&h).unwrap(), previous);
+                    assert!(s.read(&h).is_err(), "stale handle must be rejected");
+                }
+                3 => {
+                    s.relayout(LAYOUTS[(seed as usize / 5) % 3], 3).unwrap();
+                }
+                _ => {
+                    let count = 2usize.min(expected_actions.len());
+                    let drained: Vec<_> = expected_actions.drain(..count).collect();
+                    assert_eq!(s.drain_actions(2).unwrap(), drained);
+                }
+            }
+            assert_eq!(s.len(), live.len());
+            assert_eq!(oracle.len(), live.len());
+            assert_eq!(s.queued_actions(), expected_actions.as_slice());
+            for (handle, logical) in &oracle {
+                assert_eq!(&s.read(handle).unwrap(), logical);
             }
             assert!(s.invariants_hold());
-            assert_eq!(s.len(), handles.len());
         }
     }
 }
