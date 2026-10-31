@@ -199,8 +199,11 @@ impl LayoutStore {
             || outbox_capacity > MAX_OUTBOX {
             return Err(AdmissionError("invalid configuration"));
         }
-        let nonce = NEXT_INCAR.fetch_add(1, Ordering::Relaxed);
-        if nonce == 0 || nonce == u64::MAX { return Err(AdmissionError("incarnation exhausted")); }
+        // Fail closed forever on u64 exhaustion. fetch_add would wrap and
+        // eventually reuse an old store incarnation/issuer.
+        let nonce = NEXT_INCAR.fetch_update(Ordering::Relaxed, Ordering::Relaxed,
+            |current| current.checked_add(1))
+            .map_err(|_| AdmissionError("incarnation exhausted"))?;
         Ok(Self {
             layout, storage: Storage::from_rows(&[], layout, lanes),
             capacity, owner, lanes, incarnation: nonce, issuer: nonce,
@@ -362,6 +365,10 @@ impl LayoutStore {
         self.len() <= self.capacity
             && self.slots.len() <= self.capacity
             && self.storage.shape_valid(self.len(), self.lanes)
+            && matches!((self.layout, &self.storage),
+                (Layout::Aos, Storage::Aos(_))
+                    | (Layout::Soa, Storage::Soa { .. })
+                    | (Layout::Aosoa, Storage::Aosoa(_)))
             && active.len() == self.len() && free.len() == self.free.len()
             && active.is_disjoint(&free)
             && self.outbox.len() <= self.outbox_capacity
