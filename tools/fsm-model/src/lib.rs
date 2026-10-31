@@ -308,10 +308,13 @@ impl LayoutStore {
     }
     pub fn with_read_loan<F, T>(&mut self, callback: F) -> T where F: FnOnce(&mut Self) -> T {
         self.loans += 1;
-        // Host-only model: callers must not panic inside callback.
-        let value = callback(self);
+        // Match Python's try/finally: a panicking observer must release its loan.
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| callback(self)));
         self.loans -= 1;
-        value
+        match result {
+            Ok(value) => value,
+            Err(payload) => std::panic::resume_unwind(payload),
+        }
     }
     pub fn invariants_hold(&self) -> bool {
         let active: BTreeSet<_> = self.dense_slots.iter().copied().collect();
