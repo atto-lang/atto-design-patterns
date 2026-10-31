@@ -24,6 +24,8 @@ jobs:
         run: |
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           git status --porcelain
+      - name: Verify exact-head Rust host gate admission and failure contracts (fake tools only)
+        run: bash scripts/test-fsm-rust-host-runner.sh
       - name: Rust FSM exact-head offline format, lint, unit and integration tests
         env:
           ORESLANG_EXPECTED_HEAD: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
