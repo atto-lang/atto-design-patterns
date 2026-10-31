@@ -75,7 +75,9 @@ The latest source/CI findings, open P0 migration blockers, exact native verifica
 order and the opt-in SHA-256-pinned FSM execution oracle are recorded in
 [docs/design-pattern-hardening-2026-10-30.md](docs/design-pattern-hardening-2026-10-30.md).
 `scripts/check-fsm-native.sh --execute` now requires the independently pinned
-`ORESLANG_COMPILER_SHA256` and exact six-line guest stdout. Its fake-compiler
+`ORESLANG_COMPILER_SHA256`, an independently pinned clean `ORESLANG_EXPECTED_HEAD`,
+a 60-second timeout per compiler step, post-run binary/source integrity and
+exact six-line guest stdout. Its fake-compiler
 self-test remains a **runner contract test**, never native Oreslang evidence.
 Neither these checks nor the Rust receipt inspector certify compiler provenance.
 
