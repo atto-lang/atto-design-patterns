@@ -39,6 +39,10 @@ else
   else
     cat -- "$root/tests/native-pattern-oracles/${name%.ores}.stdout"
   fi
+  if [[ "$name" == "20-interceptor-pointcut.ores" &&
+        -f "$root/.git/alter-compiler-on-last-run" ]]; then
+    printf '\n# changed after output\n' >> "$0"
+  fi
 fi
 COMPILER
 chmod +x "$tmp/bin with spaces/fake-compiler"
@@ -137,4 +141,17 @@ status=$?
 set -e
 test "$status" -eq 64
 test ! -s "$log"
+# A matching final pattern output must not certify a compiler that changed
+# itself while running: the SHA pin has to hold after every guest execution.
+: > "$log"
+touch "$project/.git/alter-compiler-on-last-run"
+set +e
+bash "$project/scripts/check-native-patterns.sh" --execute > "$tmp/out" 2>&1
+status=$?
+set -e
+test "$status" -eq 69
+grep -q 'compiler changed during guest execution' "$tmp/out"
+if grep -q 'NATIVE_PATTERN_OUTPUT_ORACLES_MATCHED' "$tmp/out"; then exit 1; fi
+test "$(wc -l < "$log")" -eq 40
+
 echo "native pattern runner contracts: PASS (test double only)"

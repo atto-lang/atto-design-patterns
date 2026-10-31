@@ -81,6 +81,12 @@ for source in "${sources[@]}"; do
   fi
   printf '==> run %s\n' "$basename"
   run_compiler run "$source" > "$tmp/actual.stdout" 2> "$tmp/actual.stderr"
+  sha="$(sha256sum -- "$compiler")"
+  sha="${sha%% *}"
+  if [[ "$sha" != "$pin" ]]; then
+    echo "native patterns blocked: compiler changed during guest execution" >&2
+    exit 69
+  fi
   now="$(sha256sum -- "$source")"
   now="${now%% *}"
   if [[ "$now" != "$fixture_sha" ]]; then
