@@ -176,7 +176,18 @@ pub struct Handle {
 #[derive(Clone, Debug)]
 struct Slot { generation: u8, dense: Option<usize> }
 
-#[derive(Clone, Debug)]
+/// Store identity must never be copied into another independently mutable
+/// public instance. Internal staged snapshots are private transaction details.
+///
+/// A public Clone impl would duplicate the issuer and incarnation, letting
+/// previously minted handles authorize access to *both* stores.
+///
+/// ```compile_fail
+/// use ores_fsm_reference::{Layout, LayoutStore};
+/// let store = LayoutStore::new(Layout::Aos, 2, 1, 4, 8).unwrap();
+/// let duplicate = store.clone(); // forbidden: two stores with same issuer
+/// ```
+#[derive(Debug)]
 pub struct LayoutStore {
     layout: Layout,
     storage: Storage,
@@ -193,6 +204,25 @@ pub struct LayoutStore {
     loans: usize,
 }
 impl LayoutStore {
+    // Private snapshot is only used inside atomic_mutation. Never expose a
+    // cloneable store: the issuer is a one-store capability domain.
+    fn staged_snapshot(&self) -> Self {
+        Self {
+            layout: self.layout,
+            storage: self.storage.clone(),
+            capacity: self.capacity,
+            owner: self.owner,
+            lanes: self.lanes,
+            incarnation: self.incarnation,
+            issuer: self.issuer,
+            slots: self.slots.clone(),
+            free: self.free.clone(),
+            dense_slots: self.dense_slots.clone(),
+            outbox: self.outbox.clone(),
+            outbox_capacity: self.outbox_capacity,
+            loans: self.loans,
+        }
+    }
     pub fn new(layout: Layout, capacity: usize, owner: u64,
                lanes: usize, outbox_capacity: usize) -> Admitted<Self> {
         if capacity > MAX_CAPACITY || owner == 0 || !(1..=MAX_LANES).contains(&lanes)
@@ -242,7 +272,7 @@ impl LayoutStore {
         P: FnOnce() -> Admitted<()>,
     {
         self.exclusive()?;
-        let mut staged = self.clone();
+        let mut staged = self.staged_snapshot();
         let output = mutate(&mut staged)?;
         before_publish()?;
         *self = staged;
