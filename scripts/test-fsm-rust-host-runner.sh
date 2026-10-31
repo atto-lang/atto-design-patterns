@@ -64,6 +64,20 @@ grep -Fq "external toolchain/config override: RUSTC_WRAPPER" "$tmp/output.log"
 check_status 69 env ORESLANG_EXPECTED_HEAD="$head" CARGO_HOME="$tmp/rogue-home" bash "$work/scripts/verify-fsm-rust-host.sh" --execute
 test ! -s "$FSM_TEST_LOG"
 grep -Fq "external toolchain/config override: CARGO_HOME" "$tmp/output.log"
+
+# No Git provenance or Rust build configuration may come from ambient vars.
+# Rejection must happen before executing even a fake Cargo stage.
+for entry in \
+  'GIT_INDEX_FILE=rogue-index' \
+  'GIT_CONFIG_COUNT=1' \
+  'CARGO_BUILD_TARGET=malicious-target' \
+  'CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUSTFLAGS=-Cpanic=abort' \
+  'RUSTUP_TOOLCHAIN=unreviewed'; do
+  : > "$FSM_TEST_LOG"
+  check_status 69 env ORESLANG_EXPECTED_HEAD="$head" "$entry" bash "$work/scripts/verify-fsm-rust-host.sh" --execute
+  grep -Fq "external Git/Cargo/rustup override: ${entry%%=*}" "$tmp/output.log"
+  test ! -s "$FSM_TEST_LOG"
+done
 : > "$FSM_TEST_LOG"
 check_status 0 env ORESLANG_EXPECTED_HEAD="$head" bash "$work/scripts/verify-fsm-rust-host.sh" --execute
 grep -Fxq "RUST_FSM_HOST_CHECKS_PASSED_HEAD=$head" "$tmp/output.log"

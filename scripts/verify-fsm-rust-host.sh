@@ -24,6 +24,16 @@ for forbidden in RUSTC RUSTDOC RUSTC_WRAPPER RUSTC_WORKSPACE_WRAPPER \
     exit 69
   fi
 done
+# A Git environment override can redirect the checkout, index, worktree, or
+# config consulted by the provenance check. Cargo and rustup overrides can
+# substitute build targets, profiles, or tools even with explicit CLI flags.
+# Refuse these inherited settings before any Git or Cargo command executes.
+for injected in "${!GIT_@}" "${!CARGO_@}" "${!RUSTUP_@}"; do
+  if [[ -n "$injected" ]]; then
+    echo "rust FSM blocked: external Git/Cargo/rustup override: $injected" >&2
+    exit 69
+  fi
+done
 root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)"
 cd -- "$root"
 if [[ "$(git rev-parse --show-toplevel)" != "$root" ]]; then
