@@ -13,6 +13,43 @@ fn store(layout: Layout, capacity: usize, outbox: usize) -> LayoutStore {
     LayoutStore::new(layout, capacity, 13, 3, outbox).unwrap()
 }
 
+ // Independent hand-authored reducer oracle: avoids reusing the Rust model's
+ // step() implementation when checking either randomized or exhaustive traces.
+fn independent_transition_oracle(m: &Machine, event: &str, guard: bool, credits: i32)
+    -> ores_fsm_reference::Outcome
+{
+    use ores_fsm_reference::Outcome;
+    let reject = |reason| Outcome {
+        machine: m.clone(),
+        actions: Vec::new(),
+        accepted: false,
+        reason,
+    };
+    if !is_symbol(&m.state) || !["#idle", "#running", "#paused", "#done"].contains(&m.state.as_str())
+        || m.version > MAX_VERSION {
+        return reject("invalid-machine");
+    }
+    if !EVENTS.contains(&event) { return reject("undeclared-event"); }
+    let transition = match (m.state.as_str(), event) {
+        ("#idle", "#start") => Some(("#running", "#started")),
+        ("#running", "#pause") => Some(("#paused", "#paused_event")),
+        ("#paused", "#resume") => Some(("#running", "#resumed")),
+        ("#running", "#stop") | ("#paused", "#stop") => Some(("#done", "#stopped")),
+        ("#done", "#reset") => Some(("#idle", "#reset_event")),
+        _ => None,
+    };
+    let Some((dest, action)) = transition else { return reject("no-rule"); };
+    if !guard { return reject("guard"); }
+    if credits < 1 { return reject("effect-capacity"); }
+    if m.version == MAX_VERSION { return reject("version-overflow"); }
+    Outcome {
+        machine: machine(dest, m.version + 1),
+        actions: vec![action.to_owned()],
+        accepted: true,
+        reason: "",
+    }
+}
+
 #[test]
 fn source_edges_match_immutable_reference_table() {
     // This is a deliberately strict source-shape guard, NOT an Oreslang parser.
@@ -100,7 +137,7 @@ fn exhaustive_bounded_trace_equivalence_three_physical_layouts() {
             let mut expected = machine("#idle", 0);
             let mut outcomes = Vec::new();
             for event in &trace {
-                let result = step(&table, &expected, event, true, 1);
+                let result = independent_transition_oracle(&expected, event, true, 1);
                 expected = result.machine.clone();
                 outcomes.push((result.accepted, result.actions, result.reason));
             }
@@ -272,7 +309,7 @@ fn deterministic_randomized_trace_checks_independent_logical_oracle() {
                     let event = EVENTS[(seed as usize / 5) % EVENTS.len()];
                     let previous = oracle.get(&h).expect("live oracle handle").clone();
                     let credits = if expected_actions.len() < 256 { 1 } else { 0 };
-                    let expected = step(&table, &previous, event, true, credits);
+                    let expected = independent_transition_oracle(&previous, event, true, credits);
                     let observed = s.apply(&h, &table, event, true, 1).unwrap();
                     assert_eq!(observed, expected);
                     if expected.accepted {
