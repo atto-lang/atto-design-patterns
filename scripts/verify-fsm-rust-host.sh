@@ -13,6 +13,17 @@ if [[ ! "$expected" =~ ^[0-9a-f]{40}$ || "$expected" =~ ^0{40}$ ]]; then
   exit 69
 fi
 
+# Reject external Rust tool/config injection. A trusted runner uses its
+# provisioned, unmodified toolchain/configuration.
+for forbidden in RUSTC RUSTDOC RUSTC_WRAPPER RUSTC_WORKSPACE_WRAPPER \
+  CARGO_BUILD_RUSTC CARGO_BUILD_RUSTDOC CARGO_BUILD_RUSTC_WRAPPER \
+  CARGO_BUILD_RUSTC_WORKSPACE_WRAPPER CARGO_HOME RUSTUP_HOME \
+  RUSTFLAGS CARGO_ENCODED_RUSTFLAGS RUSTDOCFLAGS; do
+  if [[ -v "$forbidden" ]]; then
+    echo "rust FSM blocked: external toolchain/config override: $forbidden" >&2
+    exit 69
+  fi
+done
 root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)"
 cd -- "$root"
 if [[ "$(git rev-parse --show-toplevel)" != "$root" ]]; then
@@ -55,6 +66,14 @@ trap 'rm -rf -- "$target_dir"' EXIT
 export CARGO_TARGET_DIR="$target_dir" CARGO_NET_OFFLINE=true
 manifest="$root/tools/fsm-model/Cargo.toml"
 
+# Record resolved host executable paths and hashes for evidence only;
+# a reported digest is NOT an independently trusted binary pin.
+for command_name in git rustc cargo rustfmt; do
+  resolved="$(command -v -- "$command_name")"
+  resolved="$(readlink -f -- "$resolved")"
+  printf "HOST_TOOL_%s=%s\n" "$command_name" "$resolved"
+  sha256sum -- "$resolved"
+done
 printf '%s\n' "HEAD=$actual"
 printf '%s\n' "TREE=$(git rev-parse HEAD^{tree})"
 printf '%s\n' "$before"
