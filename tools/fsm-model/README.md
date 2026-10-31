@@ -35,7 +35,7 @@ tests as native .ores checks yet. See issue #10.
 | Borrow exclusion and panic-safe cleanup | Covered by tests | Not Oreslang borrow checking |
 | Simulated mutation/relayout failure atomicity | Precommit injection tests | Not native crash durability |
 | Mutation-level monkeypatch fault coverage | **Partial** | No direct equivalent of each Python fault patch |
-| Full 260-step randomized oracle parity | **Partial** | Rust checks invariants; a per-step independent oracle is still needed |
+| Full 260-step randomized oracle parity | **Covered in source** | Separate logical-state map and ordered action oracle, pending Rust test execution |
 | Unicode surrogate admission | Semantically constrained by Rust strings | Rust strings cannot contain surrogate scalar values |
 | Exact native pattern execution and AOT parity | **Not executed** | Requires independently pinned compiler and real runner |
 
