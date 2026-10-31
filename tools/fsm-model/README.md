@@ -65,7 +65,9 @@ bash scripts/verify-fsm-rust-host.sh --execute
 
 This host gate requires a clean top-level checkout matching the exact expected
 commit; rejects bad arguments, missing/malformed pins, dirty trees, missing
-Rust tools and missing/symlinked core fixtures; runs `cargo fmt --check`,
+Rust tools and missing/symlinked core fixtures; rejects inherited `GIT_*`,
+`CARGO_*`, and `RUSTUP_*` environment overrides before checkout inspection or
+compilation. Use a cleanly provisioned runner. The gate runs `cargo fmt --check`,
 `cargo clippy --offline --locked --all-targets -- -D warnings`,
 `cargo test --offline --locked --all-targets` **and** `cargo test --doc`.
 The separate documentation test run proves that attempting to clone a
@@ -89,6 +91,13 @@ source, and a Cargo test double that changes its executable **after**
 the final `cargo test --doc` invocation. These are shell contract tests
 using test doubles, **not Rust compilation or independently attested
 toolchain provenance**.
+
+The new 2026-10-31 shell regression additionally rejects `GIT_INDEX_FILE`,
+`GIT_CONFIG_COUNT`, `CARGO_BUILD_TARGET`, target-specific Cargo rustflags,
+and `RUSTUP_TOOLCHAIN` *before* any Cargo command. The tested and committed
+verifier/test-driver Git blobs are `74c2cc9c4b704f83886ba1de4a2173918a39f772`
+and `d3b260b0061265eba22f764ae086639619eb048e`. Tool hashes in this
+harness remain local integrity checks, not independent provenance receipts.
 
 Rust unit/integration/doctests, formatter, Clippy and real Oreslang guest
 execution remain **NOT_EXECUTED** until a trusted Rust toolchain and an
