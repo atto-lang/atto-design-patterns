@@ -271,7 +271,7 @@ fn deterministic_randomized_trace_checks_independent_logical_oracle() {
                     let h = live[(seed as usize) % live.len()].clone();
                     let event = EVENTS[(seed as usize / 5) % EVENTS.len()];
                     let previous = oracle.get(&h).expect("live oracle handle").clone();
-                    let credits = i32::from(expected_actions.len() < 256);
+                    let credits = if expected_actions.len() < 256 { 1 } else { 0 };
                     let expected = step(&table, &previous, event, true, credits);
                     let observed = s.apply(&h, &table, event, true, 1).unwrap();
                     assert_eq!(observed, expected);
