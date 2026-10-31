@@ -26,5 +26,11 @@ jobs:
         run: bash scripts/test-runner.sh
       - name: Verify native FSM runner fail-closed contracts (test double only)
         run: bash scripts/test-fsm-native-runner.sh
-      - name: Check bounded FSM reference model
+      - name: Rust FSM model unit tests (host only; not guest execution)
+        run: cargo test --manifest-path tools/fsm-model/Cargo.toml --offline --locked
+      - name: Rust FSM model format
+        run: cargo fmt --manifest-path tools/fsm-model/Cargo.toml -- --check
+      - name: Rust FSM model Clippy
+        run: cargo clippy --manifest-path tools/fsm-model/Cargo.toml --offline --locked --all-targets -- -D warnings
+      - name: Legacy Python FSM comparison suite (temporary until Rust parity)
         run: python3 -m unittest discover -s formal -p 'test_fsm_*.py' -v
