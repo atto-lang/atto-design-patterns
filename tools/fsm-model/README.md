@@ -45,3 +45,36 @@ fault-injection gaps are filled, and a reviewer compares behavior case-by-case.
 Even a green Rust suite would not close issue #8: it is a host-model receipt,
 not real Oreslang guest execution. No cross-organization source transfer or
 required status-context change is made here.
+
+
+## Exact-head offline verification on a trusted Linux runner
+
+When GitHub Actions fails before job admission, a trusted Linux machine with
+Rust/Cargo/Clippy/rustfmt preinstalled can run the **same** gates. Read the
+exact commit SHA from the PR's GitHub head metadata using a trusted connection
+and independently confirm the checkout SHA. Do not derive an independent pin
+from `git rev-parse HEAD` on the unverified checkout.
+
+```bash
+export ORESLANG_EXPECTED_HEAD='<independently-verified-40-hex-PR-head>'
+bash scripts/verify-fsm-rust-host.sh --execute
+```
+
+This host gate requires a clean top-level checkout matching the exact expected
+commit; rejects bad arguments, missing/malformed pins, dirty trees, missing
+Rust tools and missing/symlinked core fixtures; runs `cargo fmt --check`,
+`cargo clippy --offline --locked --all-targets -- -D warnings`, and
+`cargo test --offline --locked --all-targets`. It uses a separate temporary
+Cargo target directory and checks that the source files and Git tree remain
+unchanged. Only then does it emit the `RUST_FSM_HOST_CHECKS_PASSED_HEAD`
+marker. Record raw command logs, exit code, Rust toolchain versions and exact
+source/object digests for review. The marker is **self-reported local output,
+not a trustworthy remote execution receipt**.
+
+**As of 2026-10-31:** the exact copy of this shell gate (Git blob
+`9ef52c49d378105070fb8a03b59d4c232d0cd806`) passed `bash -n` and
+negative admission tests for missing arguments, missing pin, invalid checkout
+and missing Rust toolchain; those failures returned 64/69 as designed.
+The Rust tests, Rust formatter, Clippy and real Oreslang execution have still
+**NOT EXECUTED**. Multiple source-free alternate-organization canaries failed
+before executing any steps. Do not promote PR #12 on this evidence alone.
