@@ -231,7 +231,33 @@ impl LayoutStore {
         let dense = self.resolve(h)?;
         self.storage.rows().get(dense).cloned().ok_or(AdmissionError("invalid dense index"))
     }
+    // Reference-only O(n) snapshot transaction: stage all writes and publish
+    // as one logical operation. Failed closures/panics never touch the live store.
+    fn atomic_mutation<T, F, P>(&mut self, mutate: F, before_publish: P) -> Admitted<T>
+    where
+        F: FnOnce(&mut Self) -> Admitted<T>,
+        P: FnOnce() -> Admitted<()>,
+    {
+        self.exclusive()?;
+        let mut staged = self.clone();
+        let output = mutate(&mut staged)?;
+        before_publish()?;
+        *self = staged;
+        Ok(output)
+    }
+
+    // Adversarial fault-injection hook for model tests. This is NOT a guest
+    // API, runtime failpoint, or crash-durable transaction.
+    pub fn inject_precommit_failure<T, F>(&mut self, mutate: F) -> Admitted<T>
+    where
+        F: FnOnce(&mut Self) -> Admitted<T>,
+    {
+        self.atomic_mutation(mutate, || Err(AdmissionError("injected precommit failure")))
+    }
     pub fn insert(&mut self, machine: Machine) -> Admitted<Handle> {
+        self.atomic_mutation(|staged| staged.insert_raw(machine), || Ok(()))
+    }
+    fn insert_raw(&mut self, machine: Machine) -> Admitted<Handle> {
         self.exclusive()?;
         if self.len() >= self.capacity || (self.free.is_empty() && self.slots.len() >= self.capacity) {
             return Err(AdmissionError("capacity exhausted"));
@@ -255,6 +281,9 @@ impl LayoutStore {
         Ok(h)
     }
     pub fn remove(&mut self, h: &Handle) -> Admitted<Machine> {
+        self.atomic_mutation(|staged| staged.remove_raw(h), || Ok(()))
+    }
+    fn remove_raw(&mut self, h: &Handle) -> Admitted<Machine> {
         self.exclusive()?;
         let dense = self.resolve(h)?;
         let mut rows = self.storage.rows();
@@ -278,6 +307,10 @@ impl LayoutStore {
     }
     pub fn apply(&mut self, h: &Handle, table: &RuleTable, event: &str,
                  guard: bool, credits: i32) -> Admitted<Outcome> {
+        self.atomic_mutation(|staged| staged.apply_raw(h, table, event, guard, credits), || Ok(()))
+    }
+    fn apply_raw(&mut self, h: &Handle, table: &RuleTable, event: &str,
+                 guard: bool, credits: i32) -> Admitted<Outcome> {
         self.exclusive()?;
         let dense = self.resolve(h)?;
         let mut rows = self.storage.rows();
@@ -295,10 +328,16 @@ impl LayoutStore {
         Ok(outcome)
     }
     pub fn drain_actions(&mut self, limit: usize) -> Admitted<Vec<(Handle, String)>> {
+        self.atomic_mutation(|staged| staged.drain_raw(limit), || Ok(()))
+    }
+    fn drain_raw(&mut self, limit: usize) -> Admitted<Vec<(Handle, String)>> {
         self.exclusive()?;
         Ok(self.outbox.drain(..limit.min(self.outbox.len())).collect())
     }
     pub fn relayout(&mut self, layout: Layout, lanes: usize) -> Admitted<()> {
+        self.atomic_mutation(|staged| staged.relayout_raw(layout, lanes), || Ok(()))
+    }
+    fn relayout_raw(&mut self, layout: Layout, lanes: usize) -> Admitted<()> {
         self.exclusive()?;
         if !(1..=MAX_LANES).contains(&lanes) { return Err(AdmissionError("invalid lanes")); }
         let staged = Storage::from_rows(&self.storage.rows(), layout, lanes);
