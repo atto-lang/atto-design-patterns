@@ -72,15 +72,24 @@ The separate documentation test run proves that attempting to clone a
 `LayoutStore` fails at compile time in safe external Rust code and checks that
 public clients cannot access staged transaction fault-injection hooks. It uses a separate temporary
 Cargo target directory and checks that the source files and Git tree remain
-unchanged. Only then does it emit the `RUST_FSM_HOST_CHECKS_PASSED_HEAD`
-marker. Record raw command logs, exit code, Rust toolchain versions and exact
+unchanged. It also records the resolved `git`, `rustc`, `cargo`, and `rustfmt`
+executable paths and SHA-256 digests and rechecks both after the final doc-test
+stage; a changed tool or path fails closed without a success marker. Only then
+does it emit the `RUST_FSM_HOST_CHECKS_PASSED_HEAD` marker. Record raw command logs, exit code, Rust toolchain versions and exact
 source/object digests for review. The marker is **self-reported local output,
 not a trustworthy remote execution receipt**.
 
-**As of 2026-10-31:** the exact copy of this shell gate (Git blob
-`9ef52c49d378105070fb8a03b59d4c232d0cd806`) passed `bash -n` and
-negative admission tests for missing arguments, missing pin, invalid checkout
-and missing Rust toolchain; those failures returned 64/69 as designed.
-The Rust tests, Rust formatter, Clippy and real Oreslang execution have still
-**NOT EXECUTED**. Multiple source-free alternate-organization canaries failed
-before executing any steps. Do not promote PR #12 on this evidence alone.
+**Verification evidence (2026-10-31):** the exact host-gate and fake-tool
+regression scripts (Git blobs `64defe60acf1e5fb1cc9b069c75b76186b8ed189`
+and `d34fa83b93a614d15439f72c5b98772faf76d29c`) passed local
+`bash -n` and `bash scripts/test-fsm-rust-host-runner.sh` with an isolated
+synthetic Git repository. Negative tests verify mismatched heads, injected
+tool configuration, dirty/missing fixtures, failing Cargo stages, changed
+source, and a Cargo test double that changes its executable **after**
+the final `cargo test --doc` invocation. These are shell contract tests
+using test doubles, **not Rust compilation or independently attested
+toolchain provenance**.
+
+Rust unit/integration/doctests, formatter, Clippy and real Oreslang guest
+execution remain **NOT_EXECUTED** until a trusted Rust toolchain and an
+admitted runner are available. Do not promote PR #12 on shell-only evidence.
