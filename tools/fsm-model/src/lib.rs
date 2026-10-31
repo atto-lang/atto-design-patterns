@@ -187,6 +187,15 @@ struct Slot { generation: u8, dense: Option<usize> }
 /// let store = LayoutStore::new(Layout::Aos, 2, 1, 4, 8).unwrap();
 /// let duplicate = store.clone(); // forbidden: two stores with same issuer
 /// ```
+///
+/// ```compile_fail
+/// use ores_fsm_reference::{Layout, LayoutStore};
+/// let mut store = LayoutStore::new(Layout::Aos, 2, 1, 4, 8).unwrap();
+/// // Staged transaction references must never escape to public callers.
+/// let _ = store.inject_precommit_failure(|staged| staged.insert(
+///     ores_fsm_reference::Machine::new("#idle", 0)
+/// ));
+/// ```
 #[derive(Debug)]
 pub struct LayoutStore {
     layout: Layout,
@@ -279,14 +288,6 @@ impl LayoutStore {
         Ok(output)
     }
 
-    // Adversarial fault-injection hook for model tests. This is NOT a guest
-    // API, runtime failpoint, or crash-durable transaction.
-    pub fn inject_precommit_failure<T, F>(&mut self, mutate: F) -> Admitted<T>
-    where
-        F: FnOnce(&mut Self) -> Admitted<T>,
-    {
-        self.atomic_mutation(mutate, || Err(AdmissionError("injected precommit failure")))
-    }
     pub fn insert(&mut self, machine: Machine) -> Admitted<Handle> {
         self.atomic_mutation(|staged| staged.insert_raw(machine), || Ok(()))
     }
@@ -421,4 +422,106 @@ impl LayoutStore {
 pub fn ecs_tick(store: &mut LayoutStore, table: &RuleTable,
                 events: &[(Handle, &str)]) -> Admitted<Vec<Outcome>> {
     events.iter().map(|(h, e)| store.apply(h, table, e, true, 1)).collect()
+}
+
+#[cfg(test)]
+mod internal_rollback_tests {
+    use super::*;
+
+    fn fixture(layout: Layout) -> LayoutStore {
+        LayoutStore::new(layout, 3, 13, 3, 2).unwrap()
+    }
+
+    fn denied() -> Admitted<()> {
+        Err(AdmissionError("injected precommit failure"))
+    }
+
+    #[test]
+    fn rejected_staged_insert_remove_apply_relayout_and_outbox_are_atomic() {
+        let table = demo_table();
+        for layout in [Layout::Aos, Layout::Soa, Layout::Aosoa] {
+            let mut store = fixture(layout);
+            let a = store.insert(Machine::new("#idle", 0)).unwrap();
+            let b = store.insert(Machine::new("#running", 2)).unwrap();
+            let before = (
+                store.read(&a).unwrap(),
+                store.read(&b).unwrap(),
+                store.len(),
+                store.layout(),
+                store.queued_actions().to_vec(),
+            );
+            assert!(store.atomic_mutation(
+                |staged| staged.insert_raw(Machine::new("#paused", 1)),
+                denied,
+            ).is_err());
+            assert!(store.atomic_mutation(
+                |staged| staged.remove_raw(&a),
+                denied,
+            ).is_err());
+            assert!(store.atomic_mutation(
+                |staged| staged.apply_raw(&a, &table, "#start", true, 1),
+                denied,
+            ).is_err());
+            assert!(store.atomic_mutation(
+                |staged| staged.relayout_raw(Layout::Aosoa, 2),
+                denied,
+            ).is_err());
+            assert_eq!((
+                store.read(&a).unwrap(),
+                store.read(&b).unwrap(),
+                store.len(),
+                store.layout(),
+                store.queued_actions().to_vec(),
+            ), before);
+            assert!(store.invariants_hold());
+
+            assert!(store.apply(&a, &table, "#start", true, 1).unwrap().accepted);
+            let outbox = store.queued_actions().to_vec();
+            assert!(store.atomic_mutation(
+                |staged| staged.apply_raw(&b, &table, "#pause", true, 1),
+                denied,
+            ).is_err());
+            assert_eq!(store.queued_actions(), outbox.as_slice());
+            assert_eq!(store.read(&b).unwrap(), Machine::new("#running", 2));
+            assert!(store.invariants_hold());
+        }
+    }
+
+    #[test]
+    fn panic_during_staged_mutation_never_publishes_partial_store() {
+        for layout in [Layout::Aos, Layout::Soa, Layout::Aosoa] {
+            let mut store = fixture(layout);
+            let a = store.insert(Machine::new("#idle", 0)).unwrap();
+            let previous = store.read(&a).unwrap();
+            let panic = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                let _: Admitted<()> = store.atomic_mutation(
+                    |staged| {
+                        staged.remove_raw(&a).unwrap();
+                        panic!("injected partial mutation");
+                    },
+                    || Ok(()),
+                );
+            }));
+            assert!(panic.is_err());
+            assert_eq!(store.read(&a).unwrap(), previous);
+            assert!(store.invariants_hold());
+        }
+    }
+
+    #[test]
+    fn public_mutation_can_reuse_a_slot_only_after_a_committed_transaction() {
+        let mut store = fixture(Layout::Aosoa);
+        let a = store.insert(Machine::new("#idle", 0)).unwrap();
+        assert!(store.atomic_mutation(
+            |staged| staged.remove_raw(&a),
+            denied,
+        ).is_err());
+        // A rolled-back remove cannot retire a committed handle.
+        assert_eq!(store.read(&a).unwrap(), Machine::new("#idle", 0));
+        store.remove(&a).unwrap();
+        assert!(store.read(&a).is_err());
+        let b = store.insert(Machine::new("#idle", 0)).unwrap();
+        assert_ne!(a, b);
+        assert!(store.invariants_hold());
+    }
 }
