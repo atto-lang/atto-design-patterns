@@ -217,6 +217,12 @@ fn outbox_reservation_guard_loan_and_relayout_fail_closed() {
         assert_eq!(s.drain_actions(1).unwrap().len(), 1);
         assert!(s.apply(&h, &table, "#pause", true, 1).unwrap().accepted);
         assert!(s.invariants_hold());
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            s.with_read_loan(|_| panic!("injected observer panic"));
+        }));
+        assert!(result.is_err());
+        assert!(s.relayout(Layout::Aosoa, 2).is_ok(),
+            "panic must not leave a dangling loan");
     }
 }
 
