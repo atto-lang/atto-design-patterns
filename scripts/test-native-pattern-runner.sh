@@ -9,6 +9,13 @@ mkdir -p "$project"/{scripts,patterns,tests/native-pattern-oracles} "$tmp/bin wi
 cp "$root/scripts/check-native-patterns.sh" "$project/scripts/"
 cp "$root"/patterns/*.ores "$project/patterns/"
 cp "$root"/tests/native-pattern-oracles/*.stdout "$project/tests/native-pattern-oracles/"
+(
+  cd "$project"
+  git init -q
+  git -c user.name=Test -c user.email=test@example.invalid add .
+  git -c user.name=Test -c user.email=test@example.invalid commit -qm 'synthetic fixtures, not Oreslang source'
+)
+export ORESLANG_EXPECTED_HEAD="$(git -C "$project" rev-parse HEAD)"
 cat > "$tmp/bin with spaces/fake-compiler" <<'COMPILER'
 #!/usr/bin/env bash
 set -euo pipefail
@@ -18,12 +25,16 @@ test -z "${JAVA_TOOL_OPTIONS:-}${PYTHONPATH:-}${BASH_ENV:-}${LD_PRELOAD:-}${GIT_
 source="$2"
 root="${source%/patterns/*}"
 name="${source##*/}"
-printf '%s\t%s\n' "$1" "$name" >> "$root/invocations"
+printf '%s\t%s\n' "$1" "$name" >> "$root/.git/invocations"
 if [[ "$1" == check ]]; then
-  if [[ -f "$root/force-check-fail" ]]; then exit 41; fi
+  if [[ -f "$root/.git/force-check-fail" ]]; then exit 41; fi
+  if [[ -f "$root/.git/alter-source" ]]; then printf '\naltered\n' >> "$source"; fi
+  if [[ -f "$root/.git/alter-oracle" ]]; then
+    printf '\ncorrupted\n' >> "$root/tests/native-pattern-oracles/${name%.ores}.stdout"
+  fi
 else
-  if [[ -f "$root/force-run-fail" ]]; then exit 42; fi
-  if [[ -f "$root/wrong-output" ]]; then
+  if [[ -f "$root/.git/force-run-fail" ]]; then exit 42; fi
+  if [[ -f "$root/.git/wrong-output" ]]; then
     printf '%s\n' wrong
   else
     cat -- "$root/tests/native-pattern-oracles/${name%.ores}.stdout"
@@ -33,7 +44,7 @@ COMPILER
 chmod +x "$tmp/bin with spaces/fake-compiler"
 export ORESLANG_BIN="$tmp/bin with spaces/fake-compiler"
 export ORESLANG_COMPILER_SHA256="$(sha256sum -- "$ORESLANG_BIN" | cut -d' ' -f1)"
-log="$project/invocations"
+log="$project/.git/invocations"
 JAVA_TOOL_OPTIONS=poison PYTHONPATH=poison BASH_ENV= \
   bash "$project/scripts/check-native-patterns.sh" --execute > "$tmp/out" 2>&1
 grep -q 'NATIVE_PATTERN_OUTPUT_ORACLES_MATCHED=20' "$tmp/out"
@@ -49,7 +60,37 @@ for bad_pin in "" "not-hex" "$(printf '0%.0s' {1..64})" "$(printf '1%.0s' {1..64
   test ! -s "$log"
 done
 
-touch "$project/wrong-output"
+: > "$log"
+set +e
+ORESLANG_EXPECTED_HEAD="$(printf 'f%.0s' {1..40})" bash "$project/scripts/check-native-patterns.sh" --execute > "$tmp/out" 2>&1
+status=$?
+set -e
+test "$status" -eq 69
+test ! -s "$log"
+
+ln -s "$ORESLANG_BIN" "$tmp/bin with spaces/compiler-symlink"
+set +e
+ORESLANG_BIN="$tmp/bin with spaces/compiler-symlink" bash "$project/scripts/check-native-patterns.sh" --execute > "$tmp/out" 2>&1
+status=$?
+set -e
+test "$status" -eq 69
+test ! -s "$log"
+
+for mode in alter-source alter-oracle; do
+  : > "$log"
+  touch "$project/.git/$mode"
+  set +e
+  bash "$project/scripts/check-native-patterns.sh" --execute > "$tmp/out" 2>&1
+  status=$?
+  set -e
+  test "$status" -eq 70
+  if grep -q 'NATIVE_PATTERN_OUTPUT_ORACLES_MATCHED' "$tmp/out"; then exit 1; fi
+  (cd "$project" && git restore patterns/01-strategy.ores tests/native-pattern-oracles/01-strategy.stdout)
+  rm "$project/.git/$mode"
+done
+: > "$log"
+
+touch "$project/.git/wrong-output"
 set +e
 bash "$project/scripts/check-native-patterns.sh" --execute > "$tmp/out" 2>&1
 status=$?
@@ -57,27 +98,27 @@ set -e
 test "$status" -eq 65
 grep -q 'exact output mismatch' "$tmp/out"
 test "$(wc -l < "$log")" -eq 2
-rm "$project/wrong-output"
+rm "$project/.git/wrong-output"
 : > "$log"
 
-touch "$project/force-check-fail"
+touch "$project/.git/force-check-fail"
 set +e
 bash "$project/scripts/check-native-patterns.sh" --execute > "$tmp/out" 2>&1
 status=$?
 set -e
 test "$status" -eq 41
 test "$(wc -l < "$log")" -eq 1
-rm "$project/force-check-fail"
+rm "$project/.git/force-check-fail"
 : > "$log"
 
-touch "$project/force-run-fail"
+touch "$project/.git/force-run-fail"
 set +e
 bash "$project/scripts/check-native-patterns.sh" --execute > "$tmp/out" 2>&1
 status=$?
 set -e
 test "$status" -eq 42
 test "$(wc -l < "$log")" -eq 2
-rm "$project/force-run-fail"
+rm "$project/.git/force-run-fail"
 : > "$log"
 
 mv "$project/patterns/01-strategy.ores" "$tmp/hidden"
@@ -85,9 +126,10 @@ set +e
 bash "$project/scripts/check-native-patterns.sh" --execute > "$tmp/out" 2>&1
 status=$?
 set -e
-test "$status" -eq 66
+test "$status" -eq 69
 test ! -s "$log"
 mv "$tmp/hidden" "$project/patterns/01-strategy.ores"
+(cd "$project" && git restore patterns/01-strategy.ores)
 
 set +e
 bash "$project/scripts/check-native-patterns.sh" > "$tmp/out" 2>&1

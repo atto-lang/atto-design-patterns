@@ -24,6 +24,17 @@ if [[ "$sha" != "$pin" ]]; then
   exit 69
 fi
 cd "$root"
+expected_head="${ORESLANG_EXPECTED_HEAD:-}"
+if [[ ! "$expected_head" =~ ^[0-9a-f]{40}$ || "$expected_head" =~ ^0{40}$ ]]; then
+  echo "native patterns blocked: independently pinned exact Git HEAD required" >&2
+  exit 69
+fi
+if [[ "$(git rev-parse --show-toplevel 2>/dev/null || true)" != "$root" ||
+      "$(git rev-parse --verify HEAD 2>/dev/null || true)" != "$expected_head" ||
+      -n "$(git status --porcelain --untracked-files=normal 2>/dev/null || printf error)" ]]; then
+  echo "native patterns blocked: Git HEAD mismatch or dirty/untrusted checkout" >&2
+  exit 69
+fi
 shopt -s nullglob
 sources=("$root"/patterns/*.ores)
 oracles=("$root"/tests/native-pattern-oracles/*.stdout)
@@ -87,4 +98,9 @@ for source in "${sources[@]}"; do
     exit 65
   fi
 done
+if [[ "$(git rev-parse --verify HEAD)" != "$expected_head" ||
+      -n "$(git status --porcelain --untracked-files=normal)" ]]; then
+  echo "native patterns blocked: repository changed during verification" >&2
+  exit 70
+fi
 printf '%s\n' 'NATIVE_PATTERN_OUTPUT_ORACLES_MATCHED=20 (compiler provenance still requires independent verification)'
