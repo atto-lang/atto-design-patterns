@@ -27,7 +27,7 @@ working trees or mismatched Git HEADs **before** invoking the compiler and
 again before accepting success. A mutable branch name or self-reported
 checkout HEAD is not an independent pin. It rejects symlinked compiler or
 escaping fixture paths, hashes the compiler
-before checking and again before running each example, fences source and oracle
+before checking, before running, and immediately after each guest execution, fences source and oracle
 content digests across execution, and isolates ambient
 environment variables, applies 60-second check/run timeouts and compares
 stdout byte-for-byte. A mismatch, missing fixture, compiler failure, changed
