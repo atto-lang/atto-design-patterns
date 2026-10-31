@@ -1,0 +1,344 @@
+//! Bounded, host-only FSM oracle. This is not native Oreslang execution.
+use std::collections::{BTreeMap, BTreeSet};
+use std::sync::atomic::{AtomicU64, Ordering};
+
+pub const MAX_VERSION: u8 = 7;
+pub const MAX_GENERATION: u8 = 7;
+pub const MAX_STATES: usize = 32;
+pub const MAX_EVENTS: usize = 32;
+pub const MAX_RULES: usize = 256;
+pub const MAX_CAPACITY: usize = 64;
+pub const MAX_LANES: usize = 16;
+pub const MAX_OUTBOX: usize = 256;
+static NEXT_INCAR: AtomicU64 = AtomicU64::new(1);
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct AdmissionError(pub &'static str);
+type Admitted<T> = Result<T, AdmissionError>;
+
+pub fn is_symbol(tag: &str) -> bool {
+    let bytes = tag.as_bytes();
+    bytes.len() >= 2
+        && bytes.len() <= 128
+        && bytes[0] == b'#'
+        && (bytes[1].is_ascii_alphabetic() || bytes[1] == b'_')
+        && bytes[2..]
+            .iter()
+            .all(|b| b.is_ascii_alphanumeric() || *b == b'_')
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Machine {
+    pub state: String,
+    pub version: u8,
+}
+impl Machine {
+    pub fn new(state: &str, version: u8) -> Self {
+        Self { state: state.to_owned(), version }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Outcome {
+    pub machine: Machine,
+    pub actions: Vec<String>,
+    pub accepted: bool,
+    pub reason: &'static str,
+}
+fn reject(machine: &Machine, reason: &'static str) -> Outcome {
+    Outcome { machine: machine.clone(), actions: Vec::new(), accepted: false, reason }
+}
+
+#[derive(Clone, Debug)]
+pub struct RuleTable {
+    states: BTreeSet<String>,
+    events: BTreeSet<String>,
+    rules: BTreeMap<(String, String), (String, String)>,
+}
+impl RuleTable {
+    pub fn new(states: &[&str], events: &[&str], rules: &[(&str, &str, &str, &str)]) -> Admitted<Self> {
+        fn vocabulary(values: &[&str], bound: usize) -> Admitted<BTreeSet<String>> {
+            if values.is_empty() || values.len() > bound || !values.iter().all(|s| is_symbol(s)) {
+                return Err(AdmissionError("invalid vocabulary"));
+            }
+            let set: BTreeSet<_> = values.iter().map(|s| (*s).to_owned()).collect();
+            if set.len() != values.len() { return Err(AdmissionError("duplicate symbol")); }
+            Ok(set)
+        }
+        let states = vocabulary(states, MAX_STATES)?;
+        let events = vocabulary(events, MAX_EVENTS)?;
+        if rules.len() > MAX_RULES { return Err(AdmissionError("excessive rules")); }
+        let mut table = BTreeMap::new();
+        for &(from, event, to, action) in rules {
+            if !states.contains(from) || !states.contains(to)
+                || !events.contains(event) || !is_symbol(action) {
+                return Err(AdmissionError("undeclared transition"));
+            }
+            if table.insert((from.to_owned(), event.to_owned()),
+                (to.to_owned(), action.to_owned())).is_some() {
+                return Err(AdmissionError("duplicate transition"));
+            }
+        }
+        Ok(Self { states, events, rules: table })
+    }
+    pub fn edges(&self) -> &BTreeMap<(String, String), (String, String)> { &self.rules }
+}
+pub fn demo_table() -> RuleTable {
+    RuleTable::new(
+        &["#idle", "#running", "#paused", "#done"],
+        &["#start", "#pause", "#resume", "#stop", "#reset"],
+        &[
+            ("#idle", "#start", "#running", "#started"),
+            ("#running", "#pause", "#paused", "#paused_event"),
+            ("#paused", "#resume", "#running", "#resumed"),
+            ("#running", "#stop", "#done", "#stopped"),
+            ("#paused", "#stop", "#done", "#stopped"),
+            ("#done", "#reset", "#idle", "#reset_event"),
+        ],
+    ).expect("closed reference rules")
+}
+pub fn step(table: &RuleTable, machine: &Machine, event: &str,
+            guard: bool, action_credits: i32) -> Outcome {
+    if !is_symbol(&machine.state) || !table.states.contains(&machine.state)
+        || machine.version > MAX_VERSION {
+        return reject(machine, "invalid-machine");
+    }
+    if !is_symbol(event) || !table.events.contains(event) {
+        return reject(machine, "undeclared-event");
+    }
+    let Some((to, action)) = table.rules.get(&(machine.state.clone(), event.to_owned())) else {
+        return reject(machine, "no-rule");
+    };
+    if !guard { return reject(machine, "guard"); }
+    if action_credits < 1 { return reject(machine, "effect-capacity"); }
+    if machine.version == MAX_VERSION { return reject(machine, "version-overflow"); }
+    Outcome {
+        machine: Machine::new(to, machine.version + 1),
+        actions: vec![action.clone()], accepted: true, reason: "",
+    }
+}
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum Layout { Aos, Soa, Aosoa }
+
+#[derive(Clone, Debug)]
+enum Storage {
+    Aos(Vec<Machine>),
+    Soa { states: Vec<String>, versions: Vec<u8> },
+    Aosoa(Vec<Vec<Option<Machine>>>),
+}
+impl Storage {
+    fn from_rows(rows: &[Machine], layout: Layout, lanes: usize) -> Self {
+        match layout {
+            Layout::Aos => Self::Aos(rows.to_vec()),
+            Layout::Soa => Self::Soa {
+                states: rows.iter().map(|r| r.state.clone()).collect(),
+                versions: rows.iter().map(|r| r.version).collect(),
+            },
+            Layout::Aosoa => {
+                let mut chunks = Vec::new();
+                for row in rows.chunks(lanes) {
+                    let mut chunk: Vec<Option<Machine>> = row.iter().cloned().map(Some).collect();
+                    chunk.resize(lanes, None);
+                    chunks.push(chunk);
+                }
+                Self::Aosoa(chunks)
+            }
+        }
+    }
+    fn rows(&self) -> Vec<Machine> {
+        match self {
+            Self::Aos(rows) => rows.clone(),
+            Self::Soa { states, versions } => states.iter().zip(versions.iter())
+                .map(|(s, v)| Machine::new(s, *v)).collect(),
+            Self::Aosoa(chunks) => chunks.iter().flat_map(|c| c.iter().flatten().cloned()).collect(),
+        }
+    }
+    fn shape_valid(&self, len: usize, lanes: usize) -> bool {
+        match self {
+            Self::Aos(r) => r.len() == len,
+            Self::Soa { states, versions } => states.len() == len && versions.len() == len,
+            Self::Aosoa(chunks) => chunks.len() == len.div_ceil(lanes)
+                && chunks.iter().flatten().enumerate()
+                    .all(|(i, r)| r.is_some() == (i < len)),
+        }
+    }
+}
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct Handle {
+    owner: u64,
+    slot: usize,
+    generation: u8,
+    incarnation: u64,
+    issuer: u64,
+}
+#[derive(Clone, Debug)]
+struct Slot { generation: u8, dense: Option<usize> }
+
+#[derive(Clone, Debug)]
+pub struct LayoutStore {
+    layout: Layout,
+    storage: Storage,
+    capacity: usize,
+    owner: u64,
+    lanes: usize,
+    incarnation: u64,
+    issuer: u64,
+    slots: Vec<Slot>,
+    free: Vec<usize>,
+    dense_slots: Vec<usize>,
+    outbox: Vec<(Handle, String)>,
+    outbox_capacity: usize,
+    loans: usize,
+}
+impl LayoutStore {
+    pub fn new(layout: Layout, capacity: usize, owner: u64,
+               lanes: usize, outbox_capacity: usize) -> Admitted<Self> {
+        if capacity > MAX_CAPACITY || owner == 0 || !(1..=MAX_LANES).contains(&lanes)
+            || outbox_capacity > MAX_OUTBOX {
+            return Err(AdmissionError("invalid configuration"));
+        }
+        let nonce = NEXT_INCAR.fetch_add(1, Ordering::Relaxed);
+        if nonce == 0 || nonce == u64::MAX { return Err(AdmissionError("incarnation exhausted")); }
+        Ok(Self {
+            layout, storage: Storage::from_rows(&[], layout, lanes),
+            capacity, owner, lanes, incarnation: nonce, issuer: nonce,
+            slots: Vec::new(), free: Vec::new(), dense_slots: Vec::new(),
+            outbox: Vec::new(), outbox_capacity, loans: 0,
+        })
+    }
+    pub fn len(&self) -> usize { self.dense_slots.len() }
+    pub fn is_empty(&self) -> bool { self.dense_slots.is_empty() }
+    pub fn layout(&self) -> Layout { self.layout }
+    pub fn queued_actions(&self) -> &[(Handle, String)] { &self.outbox }
+    fn exclusive(&self) -> Admitted<()> {
+        if self.loans > 0 { Err(AdmissionError("active borrow")) } else { Ok(()) }
+    }
+    fn resolve(&self, h: &Handle) -> Admitted<usize> {
+        if h.owner != self.owner || h.incarnation != self.incarnation
+            || h.issuer != self.issuer || h.generation > MAX_GENERATION {
+            return Err(AdmissionError("foreign handle"));
+        }
+        let Some(slot) = self.slots.get(h.slot) else { return Err(AdmissionError("out of bounds")); };
+        let Some(dense) = slot.dense else { return Err(AdmissionError("stale handle")); };
+        if slot.generation != h.generation || self.dense_slots.get(dense) != Some(&h.slot) {
+            return Err(AdmissionError("stale handle"));
+        }
+        Ok(dense)
+    }
+    pub fn read(&self, h: &Handle) -> Admitted<Machine> {
+        let dense = self.resolve(h)?;
+        self.storage.rows().get(dense).cloned().ok_or(AdmissionError("invalid dense index"))
+    }
+    pub fn insert(&mut self, machine: Machine) -> Admitted<Handle> {
+        self.exclusive()?;
+        if self.len() >= self.capacity || (self.free.is_empty() && self.slots.len() >= self.capacity) {
+            return Err(AdmissionError("capacity exhausted"));
+        }
+        if !is_symbol(&machine.state) || machine.version > MAX_VERSION {
+            return Err(AdmissionError("invalid machine"));
+        }
+        let slot_id = self.free.pop().unwrap_or(self.slots.len());
+        if slot_id == self.slots.len() {
+            self.slots.push(Slot { generation: 0, dense: None });
+        }
+        let dense = self.len();
+        let h = Handle { owner: self.owner, slot: slot_id,
+            generation: self.slots[slot_id].generation,
+            incarnation: self.incarnation, issuer: self.issuer };
+        let mut rows = self.storage.rows();
+        rows.push(machine);
+        self.storage = Storage::from_rows(&rows, self.layout, self.lanes);
+        self.slots[slot_id].dense = Some(dense);
+        self.dense_slots.push(slot_id);
+        Ok(h)
+    }
+    pub fn remove(&mut self, h: &Handle) -> Admitted<Machine> {
+        self.exclusive()?;
+        let dense = self.resolve(h)?;
+        let mut rows = self.storage.rows();
+        let old = rows.swap_remove(dense);
+        let removed_slot = self.dense_slots.swap_remove(dense);
+        debug_assert_eq!(removed_slot, h.slot);
+        if dense < self.len() {
+            let moved = self.dense_slots[dense];
+            self.slots[moved].dense = Some(dense);
+        }
+        let slot = &mut self.slots[h.slot];
+        slot.dense = None;
+        if slot.generation + 1 < MAX_GENERATION {
+            slot.generation += 1;
+            self.free.push(h.slot);
+        } else {
+            slot.generation = MAX_GENERATION;
+        }
+        self.storage = Storage::from_rows(&rows, self.layout, self.lanes);
+        Ok(old)
+    }
+    pub fn apply(&mut self, h: &Handle, table: &RuleTable, event: &str,
+                 guard: bool, credits: i32) -> Admitted<Outcome> {
+        self.exclusive()?;
+        let dense = self.resolve(h)?;
+        let mut rows = self.storage.rows();
+        let available = if credits < 0 { 0 } else {
+            credits.min(self.outbox_capacity.saturating_sub(self.outbox.len()) as i32)
+        };
+        let outcome = step(table, &rows[dense], event, guard, available);
+        if outcome.accepted {
+            // Both updates are staged before publishing: no partial outbox/state.
+            rows[dense] = outcome.machine.clone();
+            let staged = Storage::from_rows(&rows, self.layout, self.lanes);
+            self.storage = staged;
+            self.outbox.push((h.clone(), outcome.actions[0].clone()));
+        }
+        Ok(outcome)
+    }
+    pub fn drain_actions(&mut self, limit: usize) -> Admitted<Vec<(Handle, String)>> {
+        self.exclusive()?;
+        Ok(self.outbox.drain(..limit.min(self.outbox.len())).collect())
+    }
+    pub fn relayout(&mut self, layout: Layout, lanes: usize) -> Admitted<()> {
+        self.exclusive()?;
+        if !(1..=MAX_LANES).contains(&lanes) { return Err(AdmissionError("invalid lanes")); }
+        let staged = Storage::from_rows(&self.storage.rows(), layout, lanes);
+        self.storage = staged;
+        self.layout = layout;
+        self.lanes = lanes;
+        Ok(())
+    }
+    pub fn with_read_loan<F, T>(&mut self, callback: F) -> T where F: FnOnce(&mut Self) -> T {
+        self.loans += 1;
+        // Host-only model: callers must not panic inside callback.
+        let value = callback(self);
+        self.loans -= 1;
+        value
+    }
+    pub fn invariants_hold(&self) -> bool {
+        let active: BTreeSet<_> = self.dense_slots.iter().copied().collect();
+        let free: BTreeSet<_> = self.free.iter().copied().collect();
+        self.len() <= self.capacity
+            && self.slots.len() <= self.capacity
+            && self.storage.shape_valid(self.len(), self.lanes)
+            && active.len() == self.len() && free.len() == self.free.len()
+            && active.is_disjoint(&free)
+            && self.outbox.len() <= self.outbox_capacity
+            && self.dense_slots.iter().enumerate()
+                .all(|(i, &s)| self.slots.get(s).is_some_and(|x| x.dense == Some(i)))
+            && self.slots.iter().enumerate().all(|(i, s)| {
+                s.generation <= MAX_GENERATION
+                    && match s.dense {
+                        Some(d) => self.dense_slots.get(d) == Some(&i),
+                        None if s.generation < MAX_GENERATION => free.contains(&i),
+                        None => !free.contains(&i),
+                    }
+            })
+            && self.outbox.iter().all(|(h, action)| {
+                h.owner == self.owner && h.incarnation == self.incarnation
+                    && h.issuer == self.issuer && is_symbol(action)
+            })
+    }
+}
+pub fn ecs_tick(store: &mut LayoutStore, table: &RuleTable,
+                events: &[(Handle, &str)]) -> Admitted<Vec<Outcome>> {
+    events.iter().map(|(h, e)| store.apply(h, table, e, true, 1)).collect()
+}
