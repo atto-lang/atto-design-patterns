@@ -16,12 +16,17 @@ reviewing semantics. Never call these fixtures runtime proof.
 ```bash
 ORESLANG_BIN=/absolute/path/to/trusted/oreslang \
 ORESLANG_COMPILER_SHA256='<independently-pinned-64-hex-sha256>' \
+ORESLANG_EXPECTED_HEAD='<independently-pinned-40-hex-PR-head>' \
 bash scripts/check-native-patterns.sh --execute
 ```
 
 The script requires exactly 20 `.ores` files, exactly 20 `.stdout`
-fixtures, an absolute executable path and an independently supplied binary
-digest. It rejects symlinked compiler or escaping fixture paths, hashes the compiler
+fixtures, an absolute executable path, an independently supplied binary
+digest, and a separately established exact Git commit SHA. It rejects dirty
+working trees or mismatched Git HEADs **before** invoking the compiler and
+again before accepting success. A mutable branch name or self-reported
+checkout HEAD is not an independent pin. It rejects symlinked compiler or
+escaping fixture paths, hashes the compiler
 before checking and again before running each example, fences source and oracle
 content digests across execution, and isolates ambient
 environment variables, applies 60-second check/run timeouts and compares
