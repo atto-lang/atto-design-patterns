@@ -69,6 +69,17 @@ mutation in ECS/SoA. Migrate to `infer struct`, explicit borrowing, and owned
 mutable buffers before pinning that compiler for complete native pattern CI.
 
 
+## Proposed native stdout oracles for all 20 patterns
+
+The repo now has 20 candidate per-pattern stdout fixtures under
+`tests/native-pattern-oracles/` and an opt-in SHA-256-pinned exact-output gate
+at `scripts/check-native-patterns.sh --execute`. See
+[docs/native-pattern-oracles.md](docs/native-pattern-oracles.md) for the
+required compiler provenance, negative ownership checks and strict
+`NOT_EXECUTED` limitations. The CI workflow runs only a **fake-compiler
+runner contract** for this gate; actual native execution is blocked until a
+trusted real compiler and functioning runner are available.
+
 ## Draft FSM alternatives: Symbol reducers vs ECS / layout stores
 
 A proposed follow-on to pattern 04 (State), 16 (ECS) and 17 (SoA) is documented in
