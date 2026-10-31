@@ -53,6 +53,15 @@ check_status 69 env ORESLANG_EXPECTED_HEAD=invalid bash "$work/scripts/verify-fs
 check_status 69 env ORESLANG_EXPECTED_HEAD=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa bash "$work/scripts/verify-fsm-rust-host.sh" --execute
 
 : > "$FSM_TEST_LOG"
+check_status 69 env ORESLANG_EXPECTED_HEAD="$head" RUSTC_WRAPPER=/bin/true bash "$work/scripts/verify-fsm-rust-host.sh" --execute
+test ! -s "$FSM_TEST_LOG"
+grep -Fq "external toolchain/config override: RUSTC_WRAPPER" "$tmp/output.log"
+
+: > "$FSM_TEST_LOG"
+check_status 69 env ORESLANG_EXPECTED_HEAD="$head" CARGO_HOME="$tmp/rogue-home" bash "$work/scripts/verify-fsm-rust-host.sh" --execute
+test ! -s "$FSM_TEST_LOG"
+grep -Fq "external toolchain/config override: CARGO_HOME" "$tmp/output.log"
+: > "$FSM_TEST_LOG"
 check_status 0 env ORESLANG_EXPECTED_HEAD="$head" bash "$work/scripts/verify-fsm-rust-host.sh" --execute
 grep -Fxq "RUST_FSM_HOST_CHECKS_PASSED_HEAD=$head" "$tmp/output.log"
 cat > "$tmp/stages.expected" <<'EXPECTED'
