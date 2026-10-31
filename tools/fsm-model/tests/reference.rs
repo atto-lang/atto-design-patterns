@@ -19,7 +19,7 @@ fn independent_transition_oracle(m: &Machine, event: &str, guard: bool, credits:
     -> ores_fsm_reference::Outcome
 {
     use ores_fsm_reference::Outcome;
-    let reject = |reason| Outcome {
+    let reject = |reason: &'static str| Outcome {
         machine: m.clone(),
         actions: Vec::new(),
         accepted: false,
