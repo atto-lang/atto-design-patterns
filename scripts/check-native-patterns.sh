@@ -9,7 +9,7 @@ fi
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
 compiler="${ORESLANG_BIN:-}"
 pin="${ORESLANG_COMPILER_SHA256:-}"
-if [[ "$compiler" != /* || ! -f "$compiler" || ! -x "$compiler" ]]; then
+if [[ "$compiler" != /* || ! -f "$compiler" || ! -x "$compiler" || -L "$compiler" ]]; then
   echo "native patterns blocked: trusted absolute compiler executable required" >&2
   exit 69
 fi
@@ -50,8 +50,18 @@ for source in "${sources[@]}"; do
     echo "native patterns blocked: missing or escaping expected stdout for $basename" >&2
     exit 70
   fi
+  fixture_sha="$(sha256sum -- "$source")"
+  fixture_sha="${fixture_sha%% *}"
+  oracle_sha="$(sha256sum -- "$expected")"
+  oracle_sha="${oracle_sha%% *}"
   printf '==> check %s\n' "$basename"
   run_compiler check "$source" > "$tmp/check.stdout" 2> "$tmp/check.stderr"
+  now="$(sha256sum -- "$source")"
+  now="${now%% *}"
+  if [[ "$now" != "$fixture_sha" ]]; then
+    echo "native patterns blocked: source changed between check and run in $basename" >&2
+    exit 70
+  fi
   sha="$(sha256sum -- "$compiler")"
   sha="${sha%% *}"
   if [[ "$sha" != "$pin" ]]; then
@@ -60,6 +70,18 @@ for source in "${sources[@]}"; do
   fi
   printf '==> run %s\n' "$basename"
   run_compiler run "$source" > "$tmp/actual.stdout" 2> "$tmp/actual.stderr"
+  now="$(sha256sum -- "$source")"
+  now="${now%% *}"
+  if [[ "$now" != "$fixture_sha" ]]; then
+    echo "native patterns blocked: source changed during execution in $basename" >&2
+    exit 70
+  fi
+  now="$(sha256sum -- "$expected")"
+  now="${now%% *}"
+  if [[ "$now" != "$oracle_sha" ]]; then
+    echo "native patterns blocked: output oracle changed during execution in $basename" >&2
+    exit 70
+  fi
   if ! cmp -s -- "$expected" "$tmp/actual.stdout"; then
     echo "native patterns rejected: exact output mismatch in $basename" >&2
     exit 65
