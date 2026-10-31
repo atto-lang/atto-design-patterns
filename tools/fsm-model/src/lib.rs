@@ -82,6 +82,7 @@ impl RuleTable {
         Ok(Self { states, events, rules: table })
     }
     pub fn edges(&self) -> &BTreeMap<(String, String), (String, String)> { &self.rules }
+    pub fn has_state(&self, state: &str) -> bool { self.states.contains(state) }
 }
 pub fn demo_table() -> RuleTable {
     RuleTable::new(
