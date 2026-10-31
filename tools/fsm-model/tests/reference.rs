@@ -83,7 +83,7 @@ fn guarded_rejections_preserve_machine_version_and_effects() {
         "version-overflow");
     let result = step(&table, &machine("#idle", 0), "#start", true, 1);
     assert_eq!(result.machine, machine("#running", 1));
-    assert_eq!(result.actions, ["#started"]);
+    assert_eq!(result.actions, vec!["#started".to_owned()]);
 }
 
 #[test]
