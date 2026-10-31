@@ -24,6 +24,8 @@ jobs:
           done < <(find scripts -type f -name '*.sh' -print0)
       - name: Verify runner failure and invocation contracts
         run: bash scripts/test-runner.sh
+      - name: Verify all-pattern stdout runner contracts (test double only)
+        run: bash scripts/test-native-pattern-runner.sh
       - name: Verify native FSM runner fail-closed contracts (test double only)
         run: bash scripts/test-fsm-native-runner.sh
       - name: Check bounded FSM reference model
