@@ -18,7 +18,7 @@ The check-only command still checks a single illustrative `.ores` FSM fixture:
 ORESLANG_BIN=/absolute/trusted/compiler bash scripts/check-fsm-native.sh
 ```
 
-For `--execute`, set a **previously independently established** lowercase 64-digit SHA-256 digest of the chosen compiler executable. The command hashes the executable before the check and again immediately before the run, isolates the compiler's environment, and requires **byte-exact** six-line stdout:
+For `--execute`, independently pin **both** the exact source checkout commit (`ORESLANG_EXPECTED_HEAD`, lowercase 40-hex) and the chosen compiler executable's lowercase SHA-256 (`ORESLANG_COMPILER_SHA256`, 64-hex). A dirty checkout, mismatched commit, symlinked compiler or fixture, fixture mutation, compiler mutation, or exceeded 60-second per-step timeout must fail closed. The gate checks the compiler digest before and after execution, isolates the compiler's environment, and requires **byte-exact** six-line stdout:
 
 ```text
 #running
@@ -34,6 +34,7 @@ Example invocation, with no assumed digest:
 ```bash
 ORESLANG_BIN=/absolute/trusted/compiler \
 ORESLANG_COMPILER_SHA256='<trusted-64-hex-sha256>' \
+ORESLANG_EXPECTED_HEAD='<independently-reviewed-40-hex-source-commit>' \
 bash scripts/check-fsm-native.sh --execute
 ```
 
