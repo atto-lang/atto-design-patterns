@@ -8,14 +8,15 @@ The model explicitly bounds state/event/rule cardinalities, version/generation,
 store capacity, physical layout lanes and outbox. It covers a pure Symbol reducer,
 three layout representations (AoS, SoA, AoSoA), generation- and
 incarnation-fenced handles, failed-guard no-ops, ordered action admission,
-borrow/relayout exclusion and staged commit-before-outbox emission, with precommit fault-injection regression tests. The source-contract
+borrow/relayout exclusion, non-cloneable public store identity and staged commit-before-outbox emission, with precommit fault-injection regression tests. The source-contract
 test checks the small illustrative `examples/fsm/01-symbol-reducer.ores`
 transition table, not its parsing or executable semantics.
 
 ```sh
 cargo fmt --manifest-path tools/fsm-model/Cargo.toml -- --check
 cargo clippy --manifest-path tools/fsm-model/Cargo.toml --locked --offline --all-targets -- -D warnings
-cargo test --manifest-path tools/fsm-model/Cargo.toml --locked --offline
+cargo test --manifest-path tools/fsm-model/Cargo.toml --locked --offline --all-targets
+cargo test --manifest-path tools/fsm-model/Cargo.toml --locked --offline --doc
 ```
 
 The remaining four Python FSM tests are retained until independent parity
@@ -63,8 +64,10 @@ bash scripts/verify-fsm-rust-host.sh --execute
 This host gate requires a clean top-level checkout matching the exact expected
 commit; rejects bad arguments, missing/malformed pins, dirty trees, missing
 Rust tools and missing/symlinked core fixtures; runs `cargo fmt --check`,
-`cargo clippy --offline --locked --all-targets -- -D warnings`, and
-`cargo test --offline --locked --all-targets`. It uses a separate temporary
+`cargo clippy --offline --locked --all-targets -- -D warnings`,
+`cargo test --offline --locked --all-targets` **and** `cargo test --doc`.
+The separate documentation test run proves that attempting to clone a
+`LayoutStore` fails at compile time in safe external Rust code. It uses a separate temporary
 Cargo target directory and checks that the source files and Git tree remain
 unchanged. Only then does it emit the `RUST_FSM_HOST_CHECKS_PASSED_HEAD`
 marker. Record raw command logs, exit code, Rust toolchain versions and exact
