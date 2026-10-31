@@ -14,7 +14,7 @@ static NEXT_INCAR: AtomicU64 = AtomicU64::new(1);
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct AdmissionError(pub &'static str);
-type Admitted<T> = Result<T, AdmissionError>;
+pub type Admitted<T> = Result<T, AdmissionError>;
 
 pub fn is_symbol(tag: &str) -> bool {
     let bytes = tag.as_bytes();
