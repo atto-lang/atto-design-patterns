@@ -69,6 +69,22 @@ mutation in ECS/SoA. Migrate to `infer struct`, explicit borrowing, and owned
 mutable buffers before pinning that compiler for complete native pattern CI.
 
 
+## Rust FSM reference migration (stage 1)
+
+A dependency-free Rust FSM host model is now under
+[tools/fsm-model](tools/fsm-model/README.md). It checks a bounded transition
+oracle, handle generations, incarnation fencing, outbox credits, three physical
+storage layouts, loan exclusion, failure atomicity and drift from the illustrative
+Symbol-reducer source fixture. Its suite is wired into the runner workflow:
+
+```bash
+cargo test --manifest-path tools/fsm-model/Cargo.toml --offline --locked
+```
+
+The Python reference suite remains temporarily for differential verification,
+including fault-injection behavior not yet fully mirrored. Neither test suite
+establishes native Oreslang execution. See issues #10 and #8.
+
 ## Draft FSM alternatives: Symbol reducers vs ECS / layout stores
 
 A proposed follow-on to pattern 04 (State), 16 (ECS) and 17 (SoA) is documented in
