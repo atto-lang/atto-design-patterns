@@ -8,8 +8,10 @@ The model explicitly bounds state/event/rule cardinalities, version/generation,
 store capacity, physical layout lanes and outbox. It covers a pure Symbol reducer,
 three layout representations (AoS, SoA, AoSoA), generation- and
 incarnation-fenced handles, failed-guard no-ops, ordered action admission,
-borrow/relayout exclusion, non-cloneable public store identity and staged commit-before-outbox emission, with precommit fault-injection regression tests. The source-contract
-test checks the small illustrative `examples/fsm/01-symbol-reducer.ores`
+borrow/relayout exclusion, non-cloneable public store identity, and staged
+commit-before-outbox emission. Precommit fault-injection tests live inside the
+crate's **private** unit-test module; they do not expose access to uncommitted
+handles or staged stores to public API consumers. The source-contract test checks the small illustrative `examples/fsm/01-symbol-reducer.ores`
 transition table, not its parsing or executable semantics.
 
 ```sh
@@ -34,7 +36,7 @@ tests as native .ores checks yet. See issue #10.
 | Generation retirement, store recreation and stale handles | Covered by tests | Issuer IDs are model-only, not authentication |
 | Bounded outbox, guard, version overflow | Covered by tests | No external exactly-once delivery |
 | Borrow exclusion and panic-safe cleanup | Covered by tests | Not Oreslang borrow checking |
-| Simulated mutation/relayout failure atomicity | Precommit injection tests | Not native crash durability |
+| Simulated mutation/relayout failure atomicity | Private unit-test fault injection | Not native crash durability |
 | Mutation-level monkeypatch fault coverage | **Partial** | No direct equivalent of each Python fault patch |
 | Full 260-step randomized oracle parity | **Covered in source** | Separate logical-state map and ordered action oracle, pending Rust test execution |
 | Unicode surrogate admission | Semantically constrained by Rust strings | Rust strings cannot contain surrogate scalar values |
@@ -67,7 +69,8 @@ Rust tools and missing/symlinked core fixtures; runs `cargo fmt --check`,
 `cargo clippy --offline --locked --all-targets -- -D warnings`,
 `cargo test --offline --locked --all-targets` **and** `cargo test --doc`.
 The separate documentation test run proves that attempting to clone a
-`LayoutStore` fails at compile time in safe external Rust code. It uses a separate temporary
+`LayoutStore` fails at compile time in safe external Rust code and checks that
+public clients cannot access staged transaction fault-injection hooks. It uses a separate temporary
 Cargo target directory and checks that the source files and Git tree remain
 unchanged. Only then does it emit the `RUST_FSM_HOST_CHECKS_PASSED_HEAD`
 marker. Record raw command logs, exit code, Rust toolchain versions and exact
