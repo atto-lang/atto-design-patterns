@@ -21,8 +21,9 @@ bash scripts/check-native-patterns.sh --execute
 
 The script requires exactly 20 `.ores` files, exactly 20 `.stdout`
 fixtures, an absolute executable path and an independently supplied binary
-digest. It rejects symlinked or escaping fixture paths, hashes the compiler
-before checking and again before running each example, isolates ambient
+digest. It rejects symlinked compiler or escaping fixture paths, hashes the compiler
+before checking and again before running each example, fences source and oracle
+content digests across execution, and isolates ambient
 environment variables, applies 60-second check/run timeouts and compares
 stdout byte-for-byte. A mismatch, missing fixture, compiler failure, changed
 compiler hash or timeout is a hard failure. It does not claim to sandbox an
