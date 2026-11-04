@@ -69,6 +69,18 @@ mutation in ECS/SoA. Migrate to `infer struct`, explicit borrowing, and owned
 mutable buffers before pinning that compiler for complete native pattern CI.
 
 
+## 2026-10-30 audit and native evidence boundaries
+
+The latest source/CI findings, open P0 migration blockers, exact native verification
+order and the opt-in SHA-256-pinned FSM execution oracle are recorded in
+[docs/design-pattern-hardening-2026-10-30.md](docs/design-pattern-hardening-2026-10-30.md).
+`scripts/check-fsm-native.sh --execute` now requires the independently pinned
+`ORESLANG_COMPILER_SHA256`, an independently pinned clean `ORESLANG_EXPECTED_HEAD`,
+a 60-second timeout per compiler step, post-run binary/source integrity and
+exact six-line guest stdout. Its fake-compiler
+self-test remains a **runner contract test**, never native Oreslang evidence.
+Neither these checks nor the Rust receipt inspector certify compiler provenance.
+
 ## Draft FSM alternatives: Symbol reducers vs ECS / layout stores
 
 A proposed follow-on to pattern 04 (State), 16 (ECS) and 17 (SoA) is documented in
