@@ -22,3 +22,15 @@ These examples are intended to demonstrate AttoLang concepts. Examples may depen
 - [AttoLang repositories](https://github.com/atto-lang)
 - [Canonical language specification](https://github.com/atto-lang/atto-spec)
 - [Backend conformance](https://github.com/atto-lang/atto-platform-conformance)
+
+## Repository ownership and contribution routing
+
+**Belongs here:** Curated, explained .atto design patterns for actors, ownership, structured concurrency, immutable data and safe resource lifetimes.
+
+**Belongs elsewhere:** Reusable production libraries live in their respective module repos; spec rules in atto-spec; exploratory spikes in atto-proof-of-concepts.
+
+**Security and portability boundary:** Every pattern should carry the needed target, exact compiler head, expected output and tests including failure/cancellation/ownership cases, not an unverified portability claim.
+
+AttoLang is the public name; preserve existing Oreslang/.ores compatibility and use canonical .atto for new portable library source. This README defines scope, not feature readiness.
+
+**Acceptance:** name exact source SHA/tree, runtime/toolchain, positive and negative checks and execution receipt before claiming support. Host-only tests and empty CI steps do not prove guest execution.
