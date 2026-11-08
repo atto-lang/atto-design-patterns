@@ -104,3 +104,14 @@ python3 -m unittest discover -s formal -p 'test_fsm_*.py' -v
 This is an abstract executable conformance model, **not** proof of the real
 Oreslang compiler, an actor runtime, or native SoA/AoSoA codegen. The guest
 syntax in the RFC is illustrative until exact-head compiler verification.
+
+## Repository ownership and migration (2026-11-08)
+
+AttoLang is the current public language name; `ores-truffle-oreslang/oreslang-design-patterns` is still the historical Oreslang repository. Preserve working `.ores` source inputs, old package names and CLI paths until compiler-backed `.atto` compatibility is established per backend.
+
+- **Belongs here:** AttoLang design pattern samples and side-by-side testable idioms.
+- **Does not belong here:** normative language semantics or production backend implementation.
+- **Organization boundary:** [atto-lang](https://github.com/atto-lang) should own language examples, compilers, tooling and libraries. [atto-co](https://github.com/atto-co) owns separately governed hosted deployment, production tenant infrastructure, identity, marketplace and billing. Existing same-purpose `atto-*` repositories do not establish a completed Git transfer or code parity.
+- **Proposed first transfer:** `atto-lang/oreslang-design-patterns` under this original repository identity/name, not an unapproved source clone or a direct move to `atto-co`. Any later managed-product carve-out needs a new governance decision.
+
+**Preflight and cutover:** coordinate with [issue #26](https://github.com/ores-truffle-oreslang/.github/issues/26), follow private [migration proposal #25](https://github.com/ores-truffle-oreslang/.github/pull/25), obtain source/target owner and independent security approval. Record repo numeric ID, exact HEAD SHA/tree, branch/ruleset protection, original and new access, open PRs, packages, releases, Actions billing/runners, secrets, webhooks, GitHub Apps, Pages, dependency URLs and rollback plan. Do not mirror private code without authorization. After actual GitHub ownership transfer, verify unchanged ID/tree/history, restore security and run exact-head CI before consumer/CLI/import edits. `steps=[]` or `steps=null` is `NOT_EXECUTED`; host/reference checks are not proof that guest AttoLang ran.
