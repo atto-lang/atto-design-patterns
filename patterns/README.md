@@ -11,3 +11,5 @@ These are educational source patterns. Their inclusion is **not** evidence of pa
 The machine-readable [catalog](catalog.json) declares this evidence boundary. Run `node --test tests/*.test.mjs` to validate the catalog and shape; these are **host-only structural checks**, not Atto compiler tests.
 
 See the [language specification](https://github.com/atto-lang/atto-spec), [platform conformance](https://github.com/atto-lang/atto-platform-conformance), and [browser syntax preview](https://github.com/atto-lang/atto-lang.github.io/blob/main/play/examples/preview/actor-receiver-methods.atto) for context.
+
+For an explicitly pinned native `attoc` build, run `ATTOC=/absolute/path/to/attoc ATTO_COMPILER_HEAD=<exact-40-character-commit-SHA> node tests/preview-compiler.mjs`. This optional negative test proves that an unsupported preview does **not** silently produce guest Wasm and reports the actual compiler diagnostic. It does not prove target grammar acceptance, actor linking, runtime dispatch, or any positive guest execution.
