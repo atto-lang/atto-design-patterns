@@ -6,6 +6,10 @@ Idiomatic design patterns for actor-based, functional, and data-oriented AttoLan
 
 Reusable design approaches, including actors, ownership, pipelines, and error handling.
 
+## Pattern catalog
+
+The [namespace-scoped actor receiver pattern](patterns/README.md) demonstrates `use namespace workers;`, two distinct actor declarations, `mtd` receivers and sealed state access. It is explicitly **syntax preview / not executed**. A checked-in JSON catalog and host-only Node tests enforce this distinction.
+
 ## How to use these examples
 
 1. Check the repository contents for `.atto` examples and target-specific project manifests.
