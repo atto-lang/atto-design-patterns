@@ -1,0 +1,27 @@
+// Adapter: convert one static data contract into another.
+
+type LegacyUser = {user_name: string, enabled: bool};
+type User = {name: string, active: bool};
+
+define module adapter_pattern as
+  fnc adapt(LegacyUser legacy): User {
+    return obj{
+      name: legacy.user_name,
+      active: legacy.enabled
+    };
+  }
+
+  pub fnc demo(): void {
+    val legacy = obj{user_name: "ada", enabled: true};
+    val user = adapt(legacy);
+
+    stdio.println(user.name);
+    stdio.println(user.active);
+    return;
+  }
+end
+
+pub routine main(): void {
+  adapter_pattern.demo();
+  return;
+}

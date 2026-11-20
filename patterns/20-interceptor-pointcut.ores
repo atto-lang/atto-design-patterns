@@ -1,0 +1,44 @@
+// Interceptor / Pointcut: the pointcut is an explicit predicate and the
+// interceptor is an ordinary wrapper. Annotation sugar can lower to this model.
+
+define module interceptor_pointcut_pattern as
+  fnc intercept(
+    Fnc<string, bool> pointcut,
+    Fnc<string, void> before,
+    Fnc<string, string> target
+  ): Fnc<string, string> {
+    return |string operation| -> {
+      if pointcut(operation) then
+        before(operation);
+      fi
+      return target(operation);
+    };
+  }
+
+  pub fnc demo(): void {
+    val Fnc<string, bool> save_pointcut = |string operation| -> {
+      return operation == "save_user" || operation == "save_order";
+    };
+
+    val Fnc<string, void> audit = |string operation| -> {
+      stdio.println("audit:");
+      stdio.println(operation);
+      return;
+    };
+
+    val Fnc<string, string> business_logic = |string operation| -> {
+      return "ran:" + operation;
+    };
+
+    val advised = intercept(save_pointcut, audit, business_logic);
+
+    stdio.println(advised("load_user"));
+    stdio.println(advised("save_user"));
+    return;
+  }
+end
+
+pub routine main(): void {
+  interceptor_pointcut_pattern.demo();
+  return;
+}

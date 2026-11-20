@@ -1,0 +1,29 @@
+// Singleton: prefer an immutable module-level service/configuration surface.
+// Oreslang does not need a mutable global Singleton class for this use case.
+
+define module application_identity as
+  pub fnc name(): string {
+    return "oreslang-design-patterns";
+  }
+
+  pub fnc version(): string {
+    return "1";
+  }
+end
+
+define module singleton_pattern as
+  pub fnc demo(): void {
+    stdio.println(application_identity.name());
+    stdio.println(application_identity.version());
+
+    // Every caller refers to the same statically defined module namespace,
+    // without exposing shared mutable object state.
+    stdio.println(application_identity.name());
+    return;
+  }
+end
+
+pub routine main(): void {
+  singleton_pattern.demo();
+  return;
+}
