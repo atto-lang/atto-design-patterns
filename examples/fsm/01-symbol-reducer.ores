@@ -1,0 +1,49 @@
+// Symbol-based FSM in ordinary Oreslang (illustrative backend fixture).
+// The #rejected Symbol is a sentinel, never committed to machine state.
+// This is a *stateless* transition kernel: no outbox/version/transaction here.
+// See docs/fsm-alternatives.md for the complete proposed semantic contract.
+
+define module fsm_symbol_reducer as
+  pub fnc next_state(Symbol state, Symbol event): Symbol {
+    if state == #idle && event == #start then
+      return #running;
+    fi
+    if state == #running && event == #pause then
+      return #paused;
+    fi
+    if state == #paused && event == #resume then
+      return #running;
+    fi
+    if state == #running && event == #stop then
+      return #done;
+    fi
+    if state == #paused && event == #stop then
+      return #done;
+    fi
+    if state == #done && event == #reset then
+      return #idle;
+    fi
+    return #rejected;
+  }
+
+  pub fnc demo(): void {
+    val Symbol running = next_state(#idle, #start);
+    val Symbol paused = next_state(running, #pause);
+    val Symbol resumed = next_state(paused, #resume);
+    val Symbol done = next_state(resumed, #stop);
+    val Symbol idle_again = next_state(done, #reset);
+    // Expected tags: #running, #paused, #running, #done, #idle, #rejected.
+    stdio.println(running);
+    stdio.println(paused);
+    stdio.println(resumed);
+    stdio.println(done);
+    stdio.println(idle_again);
+    stdio.println(next_state(#idle, #stop));
+    return;
+  }
+end
+
+pub routine main(): void {
+  fsm_symbol_reducer.demo();
+  return;
+}

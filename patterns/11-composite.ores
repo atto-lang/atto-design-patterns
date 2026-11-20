@@ -1,0 +1,36 @@
+// Composite: leaf and composite values share one callable shape.
+// A composite can contain other composites because both are Fnc<int, int>.
+
+define module composite_pattern as
+  fnc leaf(int weight): Fnc<int, int> {
+    return |int scale| -> {
+      return weight * scale;
+    };
+  }
+
+  fnc pair(
+    Fnc<int, int> left,
+    Fnc<int, int> right
+  ): Fnc<int, int> {
+    return |int scale| -> {
+      return left(scale) + right(scale);
+    };
+  }
+
+  pub fnc demo(): void {
+    val one = leaf(1);
+    val two = leaf(2);
+    val three = leaf(3);
+
+    val left_branch = pair(one, two);
+    val tree = pair(left_branch, three);
+
+    stdio.println(tree(10));
+    return;
+  }
+end
+
+pub routine main(): void {
+  composite_pattern.demo();
+  return;
+}

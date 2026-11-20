@@ -1,0 +1,35 @@
+// Proxy: wrap a callable with access policy while preserving its shape.
+
+define module proxy_pattern as
+  fnc secure(
+    Fnc<string, string> target,
+    Fnc<string, bool> allowed
+  ): Fnc<string, string> {
+    return |string request| -> {
+      if !allowed(request) then
+        return "403 forbidden";
+      fi
+      return target(request);
+    };
+  }
+
+  pub fnc demo(): void {
+    val Fnc<string, string> service = |string request| -> {
+      return "200 " + request;
+    };
+
+    val Fnc<string, bool> policy = |string request| -> {
+      return request != "admin";
+    };
+
+    val proxied = secure(service, policy);
+    stdio.println(proxied("profile"));
+    stdio.println(proxied("admin"));
+    return;
+  }
+end
+
+pub routine main(): void {
+  proxy_pattern.demo();
+  return;
+}

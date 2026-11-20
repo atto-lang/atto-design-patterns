@@ -1,0 +1,34 @@
+// Observer: callbacks are values; notification is ordinary iteration.
+// A future Stream/EventChannel can use the same subscriber callable shape.
+
+define module observer_pattern as
+  fnc notify(Array<Fnc<string, void>> observers, string event): void {
+    for (val observer of observers) {
+      observer(event);
+    }
+    return;
+  }
+
+  pub fnc demo(): void {
+    val Fnc<string, void> audit = |string event| -> {
+      stdio.println("audit:");
+      stdio.println(event);
+      return;
+    };
+
+    val Fnc<string, void> metrics = |string event| -> {
+      stdio.println("metric:");
+      stdio.println(event);
+      return;
+    };
+
+    val observers = [audit, metrics];
+    notify(observers, "order.created");
+    return;
+  }
+end
+
+pub routine main(): void {
+  observer_pattern.demo();
+  return;
+}
