@@ -40,3 +40,9 @@ These examples are intended to demonstrate AttoLang concepts. Examples may depen
 AttoLang is the canonical project name; new source, examples and documentation use `.atto` and the `atto-lang` repository organization. This README defines scope, not feature readiness.
 
 **Acceptance:** name exact source SHA/tree, runtime/toolchain, positive and negative checks and execution receipt before claiming support. Host-only tests and empty CI steps do not prove guest execution.
+
+## Legacy provenance and transfer verification
+
+The historical predecessor, `ores-truffle-oreslang/oreslang-design-patterns`, is archived; the current `atto-lang/atto-design-patterns` has a separate numeric GitHub repository ID. Preserve working legacy `.ores` examples and package/CLI aliases until their canonical `.atto` replacements are verified. Design pattern samples and side-by-side testable idioms belong here, not normative language semantics or production backend implementations. Historical or illustrative syntax is not a verified execution receipt.
+
+[atto-lang](https://github.com/atto-lang) owns language and portable tooling; [atto-co](https://github.com/atto-co) separately governs managed infrastructure, tenant hosting, identity and billing. Any future original-ID transfer or commercial carve-out requires separate owner authorization and independent security review. Inventory exact SHA/tree, numeric ID, access, protections, PRs, releases, packages, runners, secrets, deploy keys, apps, webhooks, Pages, consumers and rollback ownership; verify identity and retest after an authorized transfer. Never mirror private source without authorization. Zero-step jobs are NOT_EXECUTED; host/reference checks are not compiled guest evidence.
