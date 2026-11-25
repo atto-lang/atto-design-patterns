@@ -1,6 +1,6 @@
 use ores_fsm_reference::{
-    demo_table, ecs_tick, is_symbol, step, Layout, LayoutStore, Machine, RuleTable,
-    MAX_GENERATION, MAX_VERSION,
+    demo_table, ecs_tick, is_symbol, step, Layout, LayoutStore, Machine, RuleTable, MAX_GENERATION,
+    MAX_VERSION,
 };
 use std::collections::BTreeMap;
 
@@ -8,16 +8,21 @@ const SOURCE: &str = include_str!("../../../examples/fsm/01-symbol-reducer.ores"
 const EVENTS: [&str; 5] = ["#start", "#pause", "#resume", "#stop", "#reset"];
 const LAYOUTS: [Layout; 3] = [Layout::Aos, Layout::Soa, Layout::Aosoa];
 
-fn machine(state: &str, version: u8) -> Machine { Machine::new(state, version) }
+fn machine(state: &str, version: u8) -> Machine {
+    Machine::new(state, version)
+}
 fn store(layout: Layout, capacity: usize, outbox: usize) -> LayoutStore {
     LayoutStore::new(layout, capacity, 13, 3, outbox).unwrap()
 }
 
- // Independent hand-authored reducer oracle: avoids reusing the Rust model's
- // step() implementation when checking either randomized or exhaustive traces.
-fn independent_transition_oracle(m: &Machine, event: &str, guard: bool, credits: i32)
-    -> ores_fsm_reference::Outcome
-{
+// Independent hand-authored reducer oracle: avoids reusing the Rust model's
+// step() implementation when checking either randomized or exhaustive traces.
+fn independent_transition_oracle(
+    m: &Machine,
+    event: &str,
+    guard: bool,
+    credits: i32,
+) -> ores_fsm_reference::Outcome {
     use ores_fsm_reference::Outcome;
     let reject = |reason: &'static str| Outcome {
         machine: m.clone(),
@@ -25,11 +30,15 @@ fn independent_transition_oracle(m: &Machine, event: &str, guard: bool, credits:
         accepted: false,
         reason,
     };
-    if !is_symbol(&m.state) || !["#idle", "#running", "#paused", "#done"].contains(&m.state.as_str())
-        || m.version > MAX_VERSION {
+    if !is_symbol(&m.state)
+        || !["#idle", "#running", "#paused", "#done"].contains(&m.state.as_str())
+        || m.version > MAX_VERSION
+    {
         return reject("invalid-machine");
     }
-    if !EVENTS.contains(&event) { return reject("undeclared-event"); }
+    if !EVENTS.contains(&event) {
+        return reject("undeclared-event");
+    }
     let transition = match (m.state.as_str(), event) {
         ("#idle", "#start") => Some(("#running", "#started")),
         ("#running", "#pause") => Some(("#paused", "#paused_event")),
@@ -38,10 +47,18 @@ fn independent_transition_oracle(m: &Machine, event: &str, guard: bool, credits:
         ("#done", "#reset") => Some(("#idle", "#reset_event")),
         _ => None,
     };
-    let Some((dest, action)) = transition else { return reject("no-rule"); };
-    if !guard { return reject("guard"); }
-    if credits < 1 { return reject("effect-capacity"); }
-    if m.version == MAX_VERSION { return reject("version-overflow"); }
+    let Some((dest, action)) = transition else {
+        return reject("no-rule");
+    };
+    if !guard {
+        return reject("guard");
+    }
+    if credits < 1 {
+        return reject("effect-capacity");
+    }
+    if m.version == MAX_VERSION {
+        return reject("version-overflow");
+    }
     Outcome {
         machine: machine(dest, m.version + 1),
         actions: vec![action.to_owned()],
@@ -57,26 +74,44 @@ fn source_edges_match_immutable_reference_table() {
     let mut found: BTreeMap<(String, String), String> = BTreeMap::new();
     let mut guards = 0;
     for (index, line) in lines.iter().enumerate() {
-        if !line.starts_with("if state ==") { continue; }
+        if !line.starts_with("if state ==") {
+            continue;
+        }
         guards += 1;
         let body = line.strip_prefix("if state == ").unwrap();
         let (src, rest) = body.split_once(" && event == ").expect("known guard form");
         let event = rest.strip_suffix(" then").expect("known guard end");
-        let dest = lines.get(index + 1).expect("return line")
-            .strip_prefix("return ").expect("transition return")
-            .strip_suffix(';').expect("terminated return");
-        assert_eq!(lines.get(index + 2), Some(&"fi"), "explicit guard terminator");
+        let dest = lines
+            .get(index + 1)
+            .expect("return line")
+            .strip_prefix("return ")
+            .expect("transition return")
+            .strip_suffix(';')
+            .expect("terminated return");
+        assert_eq!(
+            lines.get(index + 2),
+            Some(&"fi"),
+            "explicit guard terminator"
+        );
         assert!(is_symbol(src) && is_symbol(event) && is_symbol(dest));
-        assert!(found.insert((src.to_owned(), event.to_owned()), dest.to_owned()).is_none());
+        assert!(found
+            .insert((src.to_owned(), event.to_owned()), dest.to_owned())
+            .is_none());
     }
-    let expected: BTreeMap<_, _> = demo_table().edges().iter()
-        .map(|(edge, (to, _))| (edge.clone(), to.clone())).collect();
+    let expected: BTreeMap<_, _> = demo_table()
+        .edges()
+        .iter()
+        .map(|(edge, (to, _))| (edge.clone(), to.clone()))
+        .collect();
     assert_eq!(guards, expected.len(), "unrecognized or missing guard");
     assert_eq!(found, expected);
     assert!(SOURCE.contains("return #rejected;"));
     assert!(SOURCE.contains("define module fsm_symbol_reducer as"));
     assert!(SOURCE.contains("pub routine main(): void"));
-    assert!(!demo_table().has_state("#rejected"), "sentinel cannot become a live state");
+    assert!(
+        !demo_table().has_state("#rejected"),
+        "sentinel cannot become a live state"
+    );
 }
 
 #[test]
@@ -91,12 +126,21 @@ fn table_admission_rejects_duplicates_unknowns_and_malformed_symbols() {
     assert!(!is_symbol(&format!("#{}", "a".repeat(128))));
     assert!(RuleTable::new(&["#idle", "#idle"], &["#start"], &[]).is_err());
     assert!(RuleTable::new(&["#idle"], &["#start", "#start"], &[]).is_err());
-    assert!(RuleTable::new(&["#idle"], &["#start"],
-        &[("#idle", "#start", "#unknown", "#effect")]).is_err());
-    assert!(RuleTable::new(&["#idle"], &["#start"], &[
-        ("#idle", "#start", "#idle", "#effect"),
-        ("#idle", "#start", "#idle", "#duplicate")
-    ]).is_err());
+    assert!(RuleTable::new(
+        &["#idle"],
+        &["#start"],
+        &[("#idle", "#start", "#unknown", "#effect")]
+    )
+    .is_err());
+    assert!(RuleTable::new(
+        &["#idle"],
+        &["#start"],
+        &[
+            ("#idle", "#start", "#idle", "#effect"),
+            ("#idle", "#start", "#idle", "#duplicate")
+        ]
+    )
+    .is_err());
 }
 
 #[test]
@@ -116,8 +160,10 @@ fn guarded_rejections_preserve_machine_version_and_effects() {
         assert_eq!(result.machine, initial);
         assert!(result.actions.is_empty());
     }
-    assert_eq!(step(&table, &machine("#idle", MAX_VERSION), "#start", true, 1).reason,
-        "version-overflow");
+    assert_eq!(
+        step(&table, &machine("#idle", MAX_VERSION), "#start", true, 1).reason,
+        "version-overflow"
+    );
     let result = step(&table, &machine("#idle", 0), "#start", true, 1);
     assert_eq!(result.machine, machine("#running", 1));
     assert_eq!(result.actions, vec!["#started".to_owned()]);
@@ -133,7 +179,10 @@ fn exhaustive_bounded_trace_equivalence_three_physical_layouts() {
             cases += 1;
             let mut trace = Vec::new();
             let mut cursor = encoded;
-            for _ in 0..length { trace.push(EVENTS[cursor % 5]); cursor /= 5; }
+            for _ in 0..length {
+                trace.push(EVENTS[cursor % 5]);
+                cursor /= 5;
+            }
             let mut expected = machine("#idle", 0);
             let mut outcomes = Vec::new();
             for event in &trace {
@@ -177,13 +226,17 @@ fn interleaved_entities_are_order_preserving_and_independent() {
                     let mut scheduled = Vec::new();
                     for pos in 0..6 {
                         if [x, y, z].contains(&pos) {
-                            scheduled.push((a.clone(), a_events[ai])); ai += 1;
+                            scheduled.push((a.clone(), a_events[ai]));
+                            ai += 1;
                         } else {
-                            scheduled.push((b.clone(), b_events[bi])); bi += 1;
+                            scheduled.push((b.clone(), b_events[bi]));
+                            bi += 1;
                         }
                     }
-                    assert!(ecs_tick(&mut s, &table, &scheduled).unwrap()
-                        .iter().all(|o| o.accepted));
+                    assert!(ecs_tick(&mut s, &table, &scheduled)
+                        .unwrap()
+                        .iter()
+                        .all(|o| o.accepted));
                     assert_eq!(s.read(&a).unwrap(), machine("#running", 3));
                     assert_eq!(s.read(&b).unwrap(), machine("#idle", 3));
                     assert!(s.invariants_hold());
@@ -282,8 +335,10 @@ fn outbox_reservation_guard_loan_and_relayout_fail_closed() {
             s.with_read_loan(|_| panic!("injected observer panic"));
         }));
         assert!(result.is_err());
-        assert!(s.relayout(Layout::Aosoa, 2).is_ok(),
-            "panic must not leave a dangling loan");
+        assert!(
+            s.relayout(Layout::Aosoa, 2).is_ok(),
+            "panic must not leave a dangling loan"
+        );
     }
 }
 
@@ -295,7 +350,11 @@ fn malformed_and_over_capacity_admission_never_changes_slots() {
         assert_eq!(s.len(), 0);
         let h = s.insert(machine("#idle", 0)).unwrap();
         assert!(s.insert(machine("#running", 0)).is_err());
-        assert!(!s.apply(&h, &demo_table(), "#start", true, 1).unwrap().accepted);
+        assert!(
+            !s.apply(&h, &demo_table(), "#start", true, 1)
+                .unwrap()
+                .accepted
+        );
         assert_eq!(s.read(&h).unwrap(), machine("#idle", 0));
         assert!(s.invariants_hold());
     }
