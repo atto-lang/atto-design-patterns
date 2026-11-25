@@ -1,0 +1,19 @@
+{
+  "schema": "atto.patterns.catalog.v1",
+  "examples": [
+    {
+      "id": "namespace-actor-receivers",
+      "path": "patterns/namespace-actor-receivers.atto",
+      "status": "syntax-preview",
+      "execution": "not_executed",
+      "description": "Two nominal actors with distinct out-of-line receiver methods and sealed state callbacks",
+      "required_features": [
+        "use namespace",
+        "declare actor",
+        "mtd receiver",
+        "critical-read",
+        "critical-write"
+      ]
+    }
+  ]
+}
