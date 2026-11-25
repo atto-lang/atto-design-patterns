@@ -1,110 +1,56 @@
-# Oreslang Design Patterns
+> **AI agent instructions (organization-wide):** Before working on code, issues, or pull requests, read and follow the [organization `AGENTS.md`](https://github.com/atto-lang/.github/blob/main/AGENTS.md), including its **merge-first stealth-development policy**. Honor any repository-local `AGENTS.md`, explicit holds, and GitHub-enforced rules.
 
-Twenty design-pattern implementations written in native Oreslang.
+# atto-design-patterns
 
-The goal is not to force every classic object-oriented pattern into class-heavy code. The examples intentionally choose the smallest Oreslang formulation that preserves each pattern's intent: higher-order functions where functions are the abstraction, pattern matching where double dispatch would be ceremony, modules for facades/singletons, and flat data/system loops for data-oriented patterns.
+Idiomatic design patterns for actor-based, functional, and data-oriented AttoLang programs.
 
-## Patterns
+## Naming migration and language authority
 
-| # | Pattern | Primary Oreslang formulation |
-|---|---|---|
-| 01 | Strategy | higher-order function |
-| 02 | Observer | callback/event channel |
-| 03 | Command | command as data + interpreter |
-| 04 | State | pure reducer |
-| 05 | Visitor | nominal variants + pattern matching |
-| 06 | Chain of Responsibility | Option-returning handler chain |
-| 07 | Decorator | function composition |
-| 08 | Proxy | higher-order access wrapper |
-| 09 | Facade | module facade |
-| 10 | Adapter | typed record transform |
-| 11 | Composite | uniform function-valued nodes |
-| 12 | Factory | pure constructor function |
-| 13 | Builder | immutable builder state |
-| 14 | Dependency Injection | explicit function dependencies |
-| 15 | Singleton | immutable module singleton |
-| 16 | ECS | entity IDs + component data + systems |
-| 17 | Structure of Arrays | parallel typed arrays |
-| 18 | Monad / Functor | Option map / flat_map composition |
-| 19 | Memoization | stateful closure cache |
-| 20 | Interceptor / Pointcut | predicate + interceptor composition |
+This repository is maintained at [atto-lang/atto-design-patterns](https://github.com/atto-lang/atto-design-patterns); use `https://github.com/atto-lang/atto-design-patterns.git` for Git remotes and canonical `.atto` source examples. The normative language contract is [atto-spec](https://github.com/atto-lang/atto-spec), with executable guest evidence tracked by [atto-platform-conformance](https://github.com/atto-lang/atto-platform-conformance). Follow current ownership, borrowing, effects, actor, and syntax rules there; do not infer implemented features from a README or unexecuted CI.
 
-## Repository rules
+## What this project explores
 
-- Pattern implementations are Oreslang, not Java adapters.
-- Each example is self-contained and independently checkable.
-- Prefer current Oreslang syntax: callable declarations use `:` or `->`; executable branches/lambdas use `->`; `=>` stays type-level.
-- Prefer static records/structs over dynamic object shapes. Open-ended keyed data belongs in `Map<K,V>`.
-- Nested behavior is represented with local function expressions, not nested callable declarations.
-- The examples double as compiler/type-checker regression material.
+Reusable design approaches, including actors, ownership, pipelines, and error handling.
 
-## Check
+## How to use these examples
 
-With the canonical Oreslang CLI on `PATH`:
+1. Check the repository contents for `.atto` examples and target-specific project manifests.
+2. Use the compiler/backend indicated by each example's actual files and scripts.
+3. Run checked-in tests or example commands only where documented and verified.
+4. Record compiler revision, expected output, and actual result when reporting an issue.
 
-```bash
-bash scripts/check-all.sh
-```
+## Portability and status
 
-The script checks each pattern as a separate source unit so every file can own a `main` routine without cross-example symbol collisions.
+These examples are intended to demonstrate AttoLang concepts. Examples may depend on unfinished language features or particular backends; their presence is not evidence that every listed feature executes on all targets. Unsupported features should be marked in the individual example's documentation.
 
-See [LANGUAGE_FINDINGS.md](LANGUAGE_FINDINGS.md) for language-design pressure exposed by the examples.
+## Links
 
-## 2026-10-06 compiler PR compatibility
+- [AttoLang repositories](https://github.com/atto-lang)
+- [Canonical language specification](https://github.com/atto-lang/atto-spec)
+- [Backend conformance](https://github.com/atto-lang/atto-platform-conformance)
 
-For the latest 10 upstream Oreslang compiler PRs, see [docs/compiler-pr-sync.md](docs/compiler-pr-sync.md). These features remain unmerged; this repo preserves its existing compiler reference and defaults until exact-SHA integration evidence is available.
+## Repository ownership and contribution routing
 
-## Runner CI and native-pattern coverage
+**Belongs here:** Curated, explained .atto design patterns for actors, ownership, structured concurrency, immutable data and safe resource lifetimes.
 
-The `Test runner contracts` workflow checks shell syntax and uses a compiler
-test double to prove independent, ordered checks, repository-root execution,
-paths with spaces, exact failure propagation, and rejection of an empty pattern
-directory. `ORESLANG_BIN` can select an explicit CLI executable. The workflow
-uses read-only permissions and no secrets.
+**Belongs elsewhere:** Reusable production libraries live in their respective module repos; spec rules in atto-spec; exploratory spikes in atto-proof-of-concepts.
 
-This runner gate does not claim that all 20 patterns compile. The 2026-10-07
-probe against compiler `5ffc52d9297d175307094d530293c69f1cafc7cd` found removed
-`obj{...}` syntax, reuse of moved `expr` in Visitor, and readonly collection
-mutation in ECS/SoA. Migrate to `infer struct`, explicit borrowing, and owned
-mutable buffers before pinning that compiler for complete native pattern CI.
+**Security and portability boundary:** Every pattern should carry the needed target, exact compiler head, expected output and tests including failure/cancellation/ownership cases, not an unverified portability claim.
 
+AttoLang is the canonical project name; new source, examples and documentation use `.atto` and the `atto-lang` repository organization. This README defines scope, not feature readiness.
+
+**Acceptance:** name exact source SHA/tree, runtime/toolchain, positive and negative checks and execution receipt before claiming support. Host-only tests and empty CI steps do not prove guest execution.
+
+## Legacy provenance and transfer verification
+
+The historical predecessor, `ores-truffle-oreslang/oreslang-design-patterns`, is archived; the current `atto-lang/atto-design-patterns` has a separate numeric GitHub repository ID. Preserve working legacy `.ores` examples and package/CLI aliases until their canonical `.atto` replacements are verified. Design pattern samples and side-by-side testable idioms belong here, not normative language semantics or production backend implementations. Historical or illustrative syntax is not a verified execution receipt.
+
+[atto-lang](https://github.com/atto-lang) owns language and portable tooling; [atto-co](https://github.com/atto-co) separately governs managed infrastructure, tenant hosting, identity and billing. Any future original-ID transfer or commercial carve-out requires separate owner authorization and independent security review. Inventory exact SHA/tree, numeric ID, access, protections, PRs, releases, packages, runners, secrets, deploy keys, apps, webhooks, Pages, consumers and rollback ownership; verify identity and retest after an authorized transfer. Never mirror private source without authorization. Zero-step jobs are NOT_EXECUTED; host/reference checks are not compiled guest evidence.
+
+## Pattern catalog
+
+The [namespace-scoped actor receiver pattern](patterns/README.md) demonstrates `use namespace workers;`, two distinct actor declarations, `mtd` receivers and sealed state access. It is explicitly **syntax preview / not executed**. A checked-in JSON catalog and host-only Node tests enforce this distinction.
 
 ## Rust FSM reference migration (stage 1)
 
-A dependency-free Rust FSM host model is now under
-[tools/fsm-model](tools/fsm-model/README.md). It checks a bounded transition
-oracle, handle generations, incarnation fencing, outbox credits, three physical
-storage layouts, loan exclusion, failure atomicity and drift from the illustrative
-Symbol-reducer source fixture. Its suite is wired into the runner workflow:
-
-```bash
-cargo test --manifest-path tools/fsm-model/Cargo.toml --offline --locked
-```
-
-The Python reference suite remains temporarily for differential verification,
-including fault-injection behavior not yet fully mirrored. Neither test suite
-establishes native Oreslang execution. See issues #10 and #8.
-
-## Draft FSM alternatives: Symbol reducers vs ECS / layout stores
-
-A proposed follow-on to pattern 04 (State), 16 (ECS) and 17 (SoA) is documented in
-[docs/fsm-alternatives.md](docs/fsm-alternatives.md). It compares a closed
-Symbol-driven pure reducer/static transition table with a data-oriented FSM
-system using ECS entity IDs and one selectable AoS, SoA or AoSoA physical
-storage layout. Neither design requires actors; optional stdlib/otp/gen_statem
-may wrap the same reducer over an actor in a later PR.
-
-The accompanying [bounded Python reference model](formal/fsm_reference.py),
-[exhaustive small-trace tests](formal/test_fsm_reference.py) and
-[adversarial hardening regressions](formal/test_fsm_hardening.py) exercise
-transition parity, failed-guard no-op semantics, bounded outbox admission,
-store-incarnation and generation fencing, swap-delete, injected relayout failure,
-tail lanes and borrow/relayout exclusion:
-
-~~~bash
-python3 -m unittest discover -s formal -p 'test_fsm_*.py' -v
-~~~
-
-This is an abstract executable conformance model, **not** proof of the real
-Oreslang compiler, an actor runtime, or native SoA/AoSoA codegen. The guest
-syntax in the RFC is illustrative until exact-head compiler verification.
+The [Rust host reference](tools/fsm-model/README.md) models bounded transitions, incarnation/generation fences, outbox credits, three physical layouts, loan exclusion and failure atomicity. The Python suite remains in place. Neither suite establishes native guest execution.

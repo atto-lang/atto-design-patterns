@@ -1,0 +1,30 @@
+// SYNTAX PREVIEW ONLY — NOT EXECUTED OR GUEST-VERIFIED.
+// Demonstrates distinct out-of-line actor receiver methods in one file.
+// 'declare actor' does not define a spawnable actor implementation.
+// Actor state is sealed: receiver methods may only access it via handle_state.
+// This pattern requires a backend with namespace linking and receiver dispatch.
+
+use namespace workers;
+
+declare actor Foo1;
+declare actor Foo2;
+
+mtd (mut self: Foo1) increment(int amount): void {
+  self.handle_state(critical-write |s| -> {
+    s.count = s.count + amount;
+  });
+}
+
+mtd (self: Foo1) read_count(): int {
+  return self.handle_state(critical-read |s| -> s.count);
+}
+
+mtd (mut self: Foo2) remember(int value): void {
+  self.handle_state(critical-write |s| -> {
+    s.last_value = value;
+  });
+}
+
+mtd (self: Foo2) read_last(): int {
+  return self.handle_state(critical-read |s| -> s.last_value);
+}

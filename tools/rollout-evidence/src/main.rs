@@ -51,7 +51,8 @@ fn inspect(
     if !digest(commit, 40) || !digest(tree, 40) || !digest(corpus, 64) {
         return Err("expected pins must be nonzero lowercase full digests".into());
     }
-    if text.len() as u64 > LIMIT || !text.is_ascii() || text.contains('\r') {
+    if text.len() as u64 > LIMIT || !text.is_ascii() || text.contains('\r') || !text.ends_with('\n')
+    {
         return Err("receipt must be bounded canonical ASCII/LF TSV".into());
     }
     let expected = manifest(cases)?;
@@ -250,6 +251,8 @@ mod tests {
         let valid = receipt(CASES);
         for text in [
             valid.replace('\n', "\r\n"),
+            valid.replace('\n', "\r"),
+            valid.trim_end_matches('\n').to_owned(),
             valid.replace("pass", "páss"),
             valid.replace("pass", "pa\0ss"),
             "x".repeat(LIMIT as usize + 1),
