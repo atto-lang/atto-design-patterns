@@ -1,0 +1,33 @@
+// Dependency Injection: dependencies are explicit callable parameters.
+// No container or reflection is required for the common case.
+
+define module dependency_injection_pattern as
+  fnc load_profile(
+    string user_id,
+    Fnc<string, string> repository,
+    Fnc<string, void> logger
+  ): string {
+    logger(user_id);
+    return repository(user_id);
+  }
+
+  pub fnc demo(): void {
+    val Fnc<string, string> in_memory_repository = |string user_id| -> {
+      return "user:" + user_id;
+    };
+
+    val Fnc<string, void> logger = |string user_id| -> {
+      stdio.println("load:");
+      stdio.println(user_id);
+      return;
+    };
+
+    stdio.println(load_profile("42", in_memory_repository, logger));
+    return;
+  }
+end
+
+pub routine main(): void {
+  dependency_injection_pattern.demo();
+  return;
+}

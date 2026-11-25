@@ -1,0 +1,31 @@
+// Factory: a pure constructor function centralizes creation policy.
+
+type Transport = {kind: string, cents_per_km: int};
+
+define module factory_pattern as
+  fnc create_transport(string mode): Transport {
+    switch mode
+      case "bike" -> {
+        return obj{kind: "bike", cents_per_km: 0};
+      }
+      case "train" -> {
+        return obj{kind: "train", cents_per_km: 12};
+      }
+      default -> {
+        return obj{kind: "walk", cents_per_km: 0};
+      }
+    end
+  }
+
+  pub fnc demo(): void {
+    val transport = create_transport("train");
+    stdio.println(transport.kind);
+    stdio.println(transport.cents_per_km);
+    return;
+  }
+end
+
+pub routine main(): void {
+  factory_pattern.demo();
+  return;
+}

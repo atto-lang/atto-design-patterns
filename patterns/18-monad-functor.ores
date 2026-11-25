@@ -1,0 +1,52 @@
+// Monad / Functor: map changes the wrapped value; flat_map chains
+// computations that already return the same context.
+// These helpers make the desired Option stdlib contract explicit.
+
+define module monad_functor_pattern as
+  fnc option_map(
+    Option<int> input,
+    Fnc<int, int> transform
+  ): Option<int> {
+    match input
+      Some(value) -> { return Some(transform(value)); }
+      None -> { return None; }
+    end
+  }
+
+  fnc option_flat_map(
+    Option<int> input,
+    Fnc<int, Option<int>> transform
+  ): Option<int> {
+    match input
+      Some(value) -> { return transform(value); }
+      None -> { return None; }
+    end
+  }
+
+  pub fnc demo(): void {
+    val Fnc<int, int> double = |int value| -> {
+      return value * 2;
+    };
+
+    val Fnc<int, Option<int>> reciprocal_guard = |int value| -> {
+      if value == 0 then
+        return None;
+      fi
+      return Some(100 / value);
+    };
+
+    val doubled = option_map(Some(10), double);
+    val result = option_flat_map(doubled, reciprocal_guard);
+
+    match result
+      Some(value) -> { stdio.println(value); }
+      None -> { stdio.println("none"); }
+    end
+    return;
+  }
+end
+
+pub routine main(): void {
+  monad_functor_pattern.demo();
+  return;
+}

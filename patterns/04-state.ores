@@ -1,0 +1,40 @@
+// State: explicit immutable state + reducer, rather than state subclasses.
+
+type CounterState = {count: int};
+type CounterAction = {kind: string, amount: int};
+
+define module state_pattern as
+  fnc reduce(CounterState state, CounterAction action): CounterState {
+    switch action.kind
+      case "increment" -> {
+        return obj{count: state.count + action.amount};
+      }
+      case "decrement" -> {
+        return obj{count: state.count - action.amount};
+      }
+      default -> {
+        return state;
+      }
+    end
+  }
+
+  pub fnc demo(): void {
+    val state0 = obj{count: 10};
+    val state1 = reduce(state0, obj{kind: "increment", amount: 5});
+    val state2 = reduce(state1, obj{kind: "decrement", amount: 2});
+
+    // Native reducer contract: unknown actions preserve state; negative deltas apply.
+    val unchanged = reduce(state2, obj{kind: "unknown", amount: 1000});
+    if unchanged.count != state2.count then panic("unknown action changed state"); fi
+    val decremented = reduce(state2, obj{kind: "decrement", amount: 20});
+    if decremented.count != -7 then panic("signed decrement regression"); fi
+    stdio.println(state0.count);
+    stdio.println(state2.count);
+    return;
+  }
+end
+
+pub routine main(): void {
+  state_pattern.demo();
+  return;
+}
