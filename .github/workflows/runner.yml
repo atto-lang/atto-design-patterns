@@ -28,3 +28,17 @@ jobs:
         run: bash scripts/test-fsm-native-runner.sh
       - name: Check bounded FSM reference model
         run: python3 -m unittest discover -s formal -p 'test_fsm_*.py' -v
+
+  rust-fsm-host:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - run: bash scripts/test-fsm-rust-host-runner.sh
+      - name: Execute exact-head Rust host reference suite (not guest execution)
+        env:
+          ORESLANG_EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: bash scripts/verify-fsm-rust-host.sh --execute

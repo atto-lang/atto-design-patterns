@@ -50,3 +50,7 @@ The historical predecessor, `ores-truffle-oreslang/oreslang-design-patterns`, is
 ## Pattern catalog
 
 The [namespace-scoped actor receiver pattern](patterns/README.md) demonstrates `use namespace workers;`, two distinct actor declarations, `mtd` receivers and sealed state access. It is explicitly **syntax preview / not executed**. A checked-in JSON catalog and host-only Node tests enforce this distinction.
+
+## Rust FSM reference migration (stage 1)
+
+The [Rust host reference](tools/fsm-model/README.md) models bounded transitions, incarnation/generation fences, outbox credits, three physical layouts, loan exclusion and failure atomicity. The Python suite remains in place. Neither suite establishes native guest execution.
